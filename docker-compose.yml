@@ -18,6 +18,8 @@ services:
     environment:
       RUSTFS_ROOT_USER: "boreadmin"
       RUSTFS_ROOT_PASSWORD: "boreadmin"
+      RUSTFS_ACCESS_KEY: "rustfsadmin"
+      RUSTFS_SECRET_KEY: "rustfsadmin"
 
 volumes:
   nats-data:
