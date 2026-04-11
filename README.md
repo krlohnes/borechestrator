@@ -245,15 +245,18 @@ This is early. The local-mode pipeline works end-to-end. Here's what exists and 
 - [x] Secret management (env, file, K8s, AWS)
 - [x] CLI: `validate`, `run`, `emit`
 - [x] End-to-end tests against live NATS
-- [ ] K8s Job runtime
-- [ ] Docker runtime
-- [ ] S3 store implementation
-- [ ] `boring-agent` container wrapper
-- [ ] Git integration (clone, branch, push per job)
-- [ ] Backpressure gates
-- [ ] Wave/concurrency support
-- [ ] Observability (OpenTelemetry)
-- [ ] `boring init` scaffolding
+- [x] K8s Job runtime (kube-rs, tested against Docker Desktop K8s)
+- [x] Docker runtime (docker run, tested)
+- [x] S3 store implementation (aws-sdk-s3, tested against RustFS)
+- [x] `boring-agent` container wrapper (with Dockerfile)
+- [x] Git integration (clone, branch, push per job)
+- [x] Backpressure gates (global + per-hat quality checks)
+- [x] Concurrent hat execution (parallel job creation)
+- [x] Metrics (atomic counters, JSON snapshots)
+- [x] `boring init` scaffolding (6 presets)
+- [ ] `boring status` / `boring logs` commands
+- [ ] OTel tracing bridge
+- [ ] Helm chart for borechestrator controller itself
 
 ## Name
 
