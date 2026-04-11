@@ -19,6 +19,8 @@ pub enum ConfigError {
 #[derive(Debug, Deserialize)]
 pub struct BoringConfig {
     pub event_loop: EventLoopConfig,
+    /// Ralph-compatible CLI backend config.
+    pub cli: Option<CliConfig>,
     pub runtime: Option<RuntimeConfig>,
     pub store: Option<StoreConfig>,
     pub broker: Option<BrokerConfig>,
@@ -90,6 +92,36 @@ pub struct EventLoopConfig {
     pub required_events: Option<Vec<String>>,
     /// How often to checkpoint run state (every N iterations).
     pub checkpoint_interval: Option<u32>,
+}
+
+/// CLI backend config (Ralph-compatible).
+#[derive(Debug, Deserialize)]
+pub struct CliConfig {
+    /// AI backend: claude, kiro, gemini, codex, amp, copilot, opencode, custom
+    pub backend: String,
+    /// How to pass the prompt: "arg" (default) or "stdin"
+    #[serde(default = "default_prompt_mode")]
+    pub prompt_mode: String,
+}
+
+fn default_prompt_mode() -> String {
+    "arg".to_string()
+}
+
+impl CliConfig {
+    /// Get the shell command for the configured backend.
+    pub fn backend_command(&self) -> String {
+        match self.backend.as_str() {
+            "claude" => "claude --print \"$BORING_PROMPT\"".to_string(),
+            "kiro" => "kiro --print \"$BORING_PROMPT\"".to_string(),
+            "gemini" => "gemini \"$BORING_PROMPT\"".to_string(),
+            "codex" => "codex \"$BORING_PROMPT\"".to_string(),
+            "amp" => "amp \"$BORING_PROMPT\"".to_string(),
+            "copilot" => "copilot \"$BORING_PROMPT\"".to_string(),
+            "opencode" => "opencode \"$BORING_PROMPT\"".to_string(),
+            other => format!("{} \"$BORING_PROMPT\"", other),
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, PartialEq)]

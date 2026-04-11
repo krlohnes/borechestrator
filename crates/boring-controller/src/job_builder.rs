@@ -9,6 +9,7 @@ pub struct JobBuilder {
     completion_promise: String,
     guardrails: Vec<String>,
     prompt_file_content: Option<String>,
+    backend_command: Option<String>,
     git_repo: Option<String>,
     git_base_branch: Option<String>,
     git_branch_strategy: Option<String>,
@@ -29,6 +30,8 @@ impl JobBuilder {
             .as_ref()
             .and_then(|path| std::fs::read_to_string(path).ok());
 
+        let backend_command = config.cli.as_ref().map(|c| c.backend_command());
+
         let (git_repo, git_base_branch, git_branch_strategy, git_credentials_secret) =
             if let Some(ref git) = config.git {
                 (
@@ -47,6 +50,7 @@ impl JobBuilder {
             completion_promise: config.event_loop.completion_promise.clone(),
             guardrails,
             prompt_file_content,
+            backend_command,
             git_repo,
             git_base_branch,
             git_branch_strategy,
@@ -171,9 +175,11 @@ impl JobBuilder {
             }
         }
 
+        // Priority: hat.command > cli.backend > echo prompt
         let command = hat
             .command
             .clone()
+            .or_else(|| self.backend_command.clone())
             .unwrap_or_else(|| "echo \"$BORING_PROMPT\"".to_string());
 
         Ok(JobSpec {
