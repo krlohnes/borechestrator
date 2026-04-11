@@ -13,6 +13,15 @@ pub struct Event {
     pub run_id: String,
     pub sequence: u64,
     pub timestamp: DateTime<Utc>,
+    /// Wave ID for grouping parallel events as a batch.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wave_id: Option<String>,
+    /// Index within the wave (0-based).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wave_index: Option<u32>,
+    /// Total events in the wave.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wave_total: Option<u32>,
 }
 
 impl Event {
@@ -32,6 +41,9 @@ impl Event {
             run_id: run_id.to_string(),
             sequence,
             timestamp: Utc::now(),
+            wave_id: None,
+            wave_index: None,
+            wave_total: None,
         }
     }
 
@@ -45,6 +57,9 @@ impl Event {
             run_id: run_id.to_string(),
             sequence,
             timestamp: Utc::now(),
+            wave_id: None,
+            wave_index: None,
+            wave_total: None,
         }
     }
 
