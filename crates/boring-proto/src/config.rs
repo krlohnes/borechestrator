@@ -84,6 +84,12 @@ pub struct EventLoopConfig {
     pub completion_promise: String,
     pub max_iterations: Option<u32>,
     pub max_runtime_seconds: Option<u64>,
+    /// Path to a prompt file (e.g., PROMPT.md) loaded at run start.
+    pub prompt_file: Option<String>,
+    /// Events that must have been seen before completion is allowed.
+    pub required_events: Option<Vec<String>>,
+    /// How often to checkpoint run state (every N iterations).
+    pub checkpoint_interval: Option<u32>,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]

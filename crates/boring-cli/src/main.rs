@@ -27,6 +27,15 @@ enum Commands {
         /// Runtime mode override
         #[arg(long)]
         mode: Option<String>,
+        /// Inline prompt (overrides prompt_file in config)
+        #[arg(short = 'p', long)]
+        prompt: Option<String>,
+        /// Path to prompt file (overrides prompt_file in config)
+        #[arg(short = 'P', long)]
+        prompt_file: Option<PathBuf>,
+        /// Resume an interrupted run
+        #[arg(long)]
+        r#continue: bool,
     },
     /// Initialize a new borechestrator.yml from a preset
     Init {
@@ -52,9 +61,9 @@ fn main() -> ExitCode {
 
     match cli.command {
         Commands::Validate { config } => commands::validate::run(&config),
-        Commands::Run { config, mode: _ } => {
+        Commands::Run { config, mode: _, prompt, prompt_file, r#continue: _ } => {
             let rt = tokio::runtime::Runtime::new().unwrap();
-            rt.block_on(commands::run::run(&config))
+            rt.block_on(commands::run::run(&config, prompt.as_deref(), prompt_file.as_deref()))
         }
         Commands::Init { preset, list } => {
             commands::init::run(preset.as_deref(), list)

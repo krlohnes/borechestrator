@@ -7,14 +7,28 @@ use boring_runtime::LocalRuntime;
 use boring_secrets::{EnvSecretProvider, ChainSecretProvider, FileSecretProvider};
 use boring_controller::reconciler::{Reconciler, RunResult};
 
-pub async fn run(config_path: &Path) -> ExitCode {
-    let config = match BoringConfig::from_file(config_path) {
+pub async fn run(config_path: &Path, inline_prompt: Option<&str>, prompt_file: Option<&Path>) -> ExitCode {
+    let mut config = match BoringConfig::from_file(config_path) {
         Ok(c) => c,
         Err(e) => {
             eprintln!("Error loading config: {}", e);
             return ExitCode::from(1);
         }
     };
+
+    // Override prompt_file from CLI args
+    if let Some(pf) = prompt_file {
+        config.event_loop.prompt_file = Some(pf.to_string_lossy().to_string());
+    }
+    if let Some(inline) = inline_prompt {
+        // Write inline prompt to a temp file and set prompt_file
+        let tmp = std::env::temp_dir().join("boring-inline-prompt.md");
+        if let Err(e) = std::fs::write(&tmp, inline) {
+            eprintln!("Failed to write inline prompt: {}", e);
+            return ExitCode::from(1);
+        }
+        config.event_loop.prompt_file = Some(tmp.to_string_lossy().to_string());
+    }
 
     if let Err(errors) = config.validate() {
         eprintln!("Validation errors:");

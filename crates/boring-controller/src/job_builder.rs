@@ -8,6 +8,7 @@ use boring_secrets::SecretProvider;
 pub struct JobBuilder {
     completion_promise: String,
     guardrails: Vec<String>,
+    prompt_file_content: Option<String>,
     git_repo: Option<String>,
     git_base_branch: Option<String>,
     git_branch_strategy: Option<String>,
@@ -21,6 +22,12 @@ impl JobBuilder {
             .as_ref()
             .map(|c| c.guardrails.clone())
             .unwrap_or_default();
+
+        let prompt_file_content = config
+            .event_loop
+            .prompt_file
+            .as_ref()
+            .and_then(|path| std::fs::read_to_string(path).ok());
 
         let (git_repo, git_base_branch, git_branch_strategy, git_credentials_secret) =
             if let Some(ref git) = config.git {
@@ -39,6 +46,7 @@ impl JobBuilder {
         Self {
             completion_promise: config.event_loop.completion_promise.clone(),
             guardrails,
+            prompt_file_content,
             git_repo,
             git_base_branch,
             git_branch_strategy,
@@ -52,8 +60,14 @@ impl JobBuilder {
         event: &Event,
         guardrails: &[String],
         scratchpad: Option<&str>,
+        prompt_file: Option<&str>,
     ) -> String {
         let mut parts = Vec::new();
+
+        // Prompt file (task description, loaded once at run start)
+        if let Some(content) = prompt_file {
+            parts.push(format!("# Task\n\n{}", content.trim()));
+        }
 
         // Instructions
         parts.push(format!("# Instructions\n\n{}", hat.instructions.trim()));
@@ -122,7 +136,7 @@ impl JobBuilder {
         scratchpad: Option<&str>,
         secrets: &dyn SecretProvider,
     ) -> anyhow::Result<JobSpec> {
-        let prompt = Self::assemble_prompt(hat, event, &self.guardrails, scratchpad);
+        let prompt = Self::assemble_prompt(hat, event, &self.guardrails, scratchpad, self.prompt_file_content.as_deref());
 
         let mut env = HashMap::new();
         env.insert("BORING_RUN_ID".to_string(), event.run_id.clone());
@@ -242,7 +256,7 @@ hats:
     fn test_assemble_prompt_includes_instructions() {
         let config = minimal_config();
         let hat = &config.hats["worker"];
-        let prompt = JobBuilder::assemble_prompt(hat, &test_event(), &[], None);
+        let prompt = JobBuilder::assemble_prompt(hat, &test_event(), &[], None, None);
         assert!(prompt.contains("Do the work."));
     }
 
@@ -250,7 +264,7 @@ hats:
     fn test_assemble_prompt_includes_event_context() {
         let config = minimal_config();
         let hat = &config.hats["worker"];
-        let prompt = JobBuilder::assemble_prompt(hat, &test_event(), &[], None);
+        let prompt = JobBuilder::assemble_prompt(hat, &test_event(), &[], None, None);
         assert!(prompt.contains("work.start"));
         assert!(prompt.contains("begin the work"));
     }
@@ -260,7 +274,7 @@ hats:
         let config = config_with_guardrails();
         let hat = &config.hats["worker"];
         let guardrails: Vec<String> = config.core.as_ref().unwrap().guardrails.clone();
-        let prompt = JobBuilder::assemble_prompt(hat, &test_event(), &guardrails, None);
+        let prompt = JobBuilder::assemble_prompt(hat, &test_event(), &guardrails, None, None);
         assert!(prompt.contains("Always commit after changes."));
         assert!(prompt.contains("Run tests before emitting done."));
     }
@@ -269,7 +283,7 @@ hats:
     fn test_assemble_prompt_includes_scratchpad() {
         let config = minimal_config();
         let hat = &config.hats["worker"];
-        let prompt = JobBuilder::assemble_prompt(hat, &test_event(), &[], Some("## Progress\n- Step 1 done"));
+        let prompt = JobBuilder::assemble_prompt(hat, &test_event(), &[], Some("## Progress\n- Step 1 done"), None);
         assert!(prompt.contains("## Progress"));
         assert!(prompt.contains("- Step 1 done"));
     }
@@ -278,7 +292,7 @@ hats:
     fn test_assemble_prompt_no_scratchpad() {
         let config = minimal_config();
         let hat = &config.hats["worker"];
-        let prompt = JobBuilder::assemble_prompt(hat, &test_event(), &[], None);
+        let prompt = JobBuilder::assemble_prompt(hat, &test_event(), &[], None, None);
         assert!(!prompt.contains("Scratchpad"));
     }
 
