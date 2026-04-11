@@ -28,6 +28,7 @@ pub struct BoringConfig {
     pub backpressure: Option<BackpressureConfig>,
     pub memories: Option<MemoriesConfig>,
     pub tasks: Option<TasksConfig>,
+    pub hooks: Option<HooksConfig>,
     pub core: Option<CoreConfig>,
     pub hats: HashMap<String, HatConfig>,
 }
@@ -213,6 +214,23 @@ fn default_budget() -> usize { 2000 }
 pub struct TasksConfig {
     #[serde(default = "default_true")]
     pub enabled: bool,
+}
+
+/// Hooks config for lifecycle events.
+#[derive(Debug, Deserialize)]
+pub struct HooksConfig {
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    #[serde(default)]
+    pub events: std::collections::HashMap<String, Vec<HookDef>>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct HookDef {
+    pub name: String,
+    pub command: Vec<String>,
+    #[serde(default)]
+    pub on_error: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

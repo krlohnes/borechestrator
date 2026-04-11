@@ -1,5 +1,6 @@
 pub mod backpressure;
 pub mod event_router;
+pub mod hooks;
 pub mod memories;
 pub mod tasks;
 pub mod job_builder;
