@@ -61,34 +61,70 @@ impl Reconciler {
         self
     }
 
+    /// Run a new orchestration.
     pub async fn run(&mut self) -> anyhow::Result<RunResult> {
-        let run_id = format!(
-            "run-{}",
-            uuid::Uuid::new_v4().to_string().split('-').next().unwrap()
-        );
+        self.run_inner(None).await
+    }
+
+    /// Resume from the last checkpoint.
+    pub async fn resume(&mut self) -> anyhow::Result<RunResult> {
+        let checkpoint = crate::checkpoint::Checkpoint::find_latest(&*self.store).await?;
+        match checkpoint {
+            Some(cp) => {
+                tracing::info!(run_id = %cp.run_id, iterations = cp.iterations, "resuming from checkpoint");
+                self.run_inner(Some(cp)).await
+            }
+            None => {
+                tracing::warn!("no checkpoint found, starting fresh");
+                self.run_inner(None).await
+            }
+        }
+    }
+
+    async fn run_inner(&mut self, checkpoint: Option<crate::checkpoint::Checkpoint>) -> anyhow::Result<RunResult> {
+        let (run_id, mut iterations, mut activations, mut consecutive_failures, mut global_sequence, mut seen_events) =
+            if let Some(cp) = checkpoint {
+                (
+                    cp.run_id,
+                    cp.iterations,
+                    cp.activations,
+                    cp.consecutive_failures,
+                    cp.global_sequence,
+                    cp.seen_events,
+                )
+            } else {
+                (
+                    format!("run-{}", uuid::Uuid::new_v4().to_string().split('-').next().unwrap()),
+                    0u32,
+                    HashMap::new(),
+                    0u32,
+                    1u64,
+                    Vec::new(),
+                )
+            };
+
         let router = EventRouter::new(self.config.hats.clone());
         let builder = JobBuilder::new(&self.config);
         let max_iterations = self.config.event_loop.max_iterations.unwrap_or(100);
         let completion_promise = self.config.event_loop.completion_promise.clone();
+        let checkpoint_interval = self.config.event_loop.checkpoint_interval.unwrap_or(5);
 
-        let mut iterations: u32 = 0;
-        let mut activations: HashMap<String, u32> = HashMap::new();
         let mut active_jobs: HashSet<String> = HashSet::new();
-        let mut consecutive_failures: u32 = 0;
-        let mut global_sequence: u64 = 1; // 0 is the starting event
 
-        // Publish the starting event
-        let starting_event = Event::new(
-            &self.config.event_loop.starting_event,
-            "",
-            None,
-            &run_id,
-            0,
-        );
         // Subscribe BEFORE publishing so we don't miss the starting event
         let mut subscription = self.broker.subscribe_all(&run_id).await?;
 
-        self.broker.publish(&run_id, &starting_event).await?;
+        // Only publish starting event for fresh runs (not resumes)
+        if seen_events.is_empty() {
+            let starting_event = Event::new(
+                &self.config.event_loop.starting_event,
+                "",
+                None,
+                &run_id,
+                0,
+            );
+            self.broker.publish(&run_id, &starting_event).await?;
+        }
 
         loop {
             if iterations >= max_iterations {
@@ -111,6 +147,11 @@ impl Reconciler {
                 }
                 Err(_) => return Ok(RunResult::TimedOut),
             };
+
+            // Track seen events for checkpointing
+            if !event.is_system() {
+                seen_events.push(event.topic.clone());
+            }
 
             if event.is_completion(&completion_promise) {
                 return Ok(RunResult::Completed);
@@ -259,6 +300,21 @@ impl Reconciler {
                         }
                     }
                 }
+            }
+
+            // Checkpoint every N iterations
+            if checkpoint_interval > 0 && iterations % checkpoint_interval == 0 {
+                let cp = crate::checkpoint::Checkpoint {
+                    run_id: run_id.clone(),
+                    iterations,
+                    activations: activations.clone(),
+                    consecutive_failures,
+                    global_sequence,
+                    seen_events: seen_events.clone(),
+                    config_hash: String::new(),
+                };
+                cp.save(&*self.store).await.ok();
+                tracing::debug!(iterations, "checkpoint saved");
             }
         }
     }

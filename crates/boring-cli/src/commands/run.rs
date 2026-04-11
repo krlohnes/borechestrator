@@ -7,7 +7,7 @@ use boring_runtime::LocalRuntime;
 use boring_secrets::{EnvSecretProvider, ChainSecretProvider, FileSecretProvider};
 use boring_controller::reconciler::{Reconciler, RunResult};
 
-pub async fn run(config_path: &Path, inline_prompt: Option<&str>, prompt_file: Option<&Path>) -> ExitCode {
+pub async fn run(config_path: &Path, inline_prompt: Option<&str>, prompt_file: Option<&Path>, resume: bool) -> ExitCode {
     let mut config = match BoringConfig::from_file(config_path) {
         Ok(c) => c,
         Err(e) => {
@@ -84,7 +84,14 @@ pub async fn run(config_path: &Path, inline_prompt: Option<&str>, prompt_file: O
         Box::new(secrets),
     );
 
-    match reconciler.run().await {
+    let result = if resume {
+        println!("Resuming from last checkpoint...");
+        reconciler.resume().await
+    } else {
+        reconciler.run().await
+    };
+
+    match result {
         Ok(RunResult::Completed) => {
             println!("Run completed successfully.");
             ExitCode::SUCCESS
