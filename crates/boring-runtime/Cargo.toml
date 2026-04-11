@@ -13,6 +13,15 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 tracing = { workspace = true }
 
+# K8s (optional)
+kube = { workspace = true, optional = true }
+k8s-openapi = { workspace = true, optional = true }
+uuid = { workspace = true, optional = true }
+
+[features]
+default = []
+k8s = ["dep:kube", "dep:k8s-openapi", "dep:uuid"]
+
 [dev-dependencies]
 tokio = { workspace = true }
 tempfile = { workspace = true }
