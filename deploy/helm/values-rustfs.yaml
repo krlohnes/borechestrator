@@ -1,0 +1,15 @@
+# RustFS Helm values
+# helm repo add rustfs https://charts.rustfs.com/
+# helm install rustfs rustfs/rustfs -f values-rustfs.yaml
+
+image:
+  repository: rustfs/rustfs
+  tag: latest
+
+persistence:
+  enabled: true
+  size: 10Gi
+
+env:
+  RUSTFS_ROOT_USER: "boreadmin"
+  RUSTFS_ROOT_PASSWORD: "boreadmin"
