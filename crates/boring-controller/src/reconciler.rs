@@ -6,6 +6,7 @@ use boring_store::Store;
 use boring_runtime::{Runtime, JobStatus};
 use boring_secrets::SecretProvider;
 
+use crate::backpressure;
 use crate::event_router::EventRouter;
 use crate::job_builder::JobBuilder;
 use crate::output_parser;
@@ -125,6 +126,29 @@ impl Reconciler {
                     Some(h) => h,
                     None => continue,
                 };
+
+                // Run global + per-hat backpressure gates
+                let mut gates = self
+                    .config
+                    .backpressure
+                    .as_ref()
+                    .map(|bp| bp.gates.clone())
+                    .unwrap_or_default();
+                gates.extend(hat.gates.clone());
+
+                if !gates.is_empty() {
+                    if let Err(failure) = backpressure::run_gates(&gates).await {
+                        tracing::warn!(hat = %hat_id, gate = %failure.gate_name, "gate failed, skipping hat");
+                        consecutive_failures += 1;
+                        iterations += 1;
+                        if consecutive_failures >= 3 {
+                            return Ok(RunResult::Failed {
+                                reason: format!("gate failure: {}", failure),
+                            });
+                        }
+                        continue;
+                    }
+                }
 
                 let scratchpad_key = format!("{}/scratchpad/{}.md", run_id, hat_id);
                 let scratchpad = self

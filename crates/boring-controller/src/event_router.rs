@@ -101,6 +101,7 @@ mod tests {
             resources: None,
             max_activations: None,
             concurrency: None,
+            gates: Vec::new(),
         }
     }
 

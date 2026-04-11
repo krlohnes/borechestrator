@@ -23,6 +23,7 @@ pub struct BoringConfig {
     pub store: Option<StoreConfig>,
     pub broker: Option<BrokerConfig>,
     pub git: Option<GitConfig>,
+    pub backpressure: Option<BackpressureConfig>,
     pub core: Option<CoreConfig>,
     pub hats: HashMap<String, HatConfig>,
 }
@@ -150,6 +151,20 @@ pub struct CoreConfig {
     pub guardrails: Vec<String>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct BackpressureConfig {
+    #[serde(default)]
+    pub gates: Vec<Gate>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct Gate {
+    pub name: String,
+    pub command: String,
+    #[serde(default)]
+    pub on_fail: Option<String>,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct HatConfig {
     pub name: String,
@@ -165,6 +180,9 @@ pub struct HatConfig {
     pub resources: Option<Resources>,
     pub max_activations: Option<u32>,
     pub concurrency: Option<u32>,
+    /// Per-hat gates that must pass before the hat's command runs.
+    #[serde(default)]
+    pub gates: Vec<Gate>,
 }
 
 /// Environment variable value: either a literal string or a reference to a K8s secret.
