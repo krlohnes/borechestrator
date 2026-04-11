@@ -2,6 +2,7 @@ use boring_broker::NatsBroker;
 use boring_controller::reconciler::{Reconciler, RunResult};
 use boring_proto::config::BoringConfig;
 use boring_runtime::LocalRuntime;
+use boring_secrets::EnvSecretProvider;
 use boring_store::LocalStore;
 use tempfile::TempDir;
 
@@ -54,6 +55,7 @@ hats:
         Box::new(broker),
         Box::new(store),
         Box::new(runtime),
+        Box::new(EnvSecretProvider::new()),
     );
 
     let result = reconciler.run().await.unwrap();
@@ -101,6 +103,7 @@ hats:
         Box::new(broker),
         Box::new(store),
         Box::new(runtime),
+        Box::new(EnvSecretProvider::new()),
     );
 
     let result = reconciler.run().await.unwrap();
@@ -161,6 +164,7 @@ hats:
         Box::new(broker),
         Box::new(store),
         Box::new(runtime),
+        Box::new(EnvSecretProvider::new()),
     );
 
     let result = reconciler.run().await.unwrap();

@@ -7,7 +7,7 @@ pub mod k8s;
 pub mod aws;
 pub mod chain;
 
-pub use traits::SecretProvider;
+pub use traits::{SecretProvider, NoopSecretProvider};
 pub use env::EnvSecretProvider;
 pub use file::FileSecretProvider;
 pub use chain::ChainSecretProvider;

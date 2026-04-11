@@ -1,7 +1,8 @@
 use std::collections::HashMap;
-use boring_proto::config::{BoringConfig, HatConfig};
+use boring_proto::config::{BoringConfig, EnvValue, HatConfig};
 use boring_proto::event::Event;
 use boring_runtime::JobSpec;
+use boring_secrets::SecretProvider;
 
 /// Builds JobSpecs from hat configs, events, and scratchpad state.
 pub struct JobBuilder {
@@ -59,14 +60,46 @@ impl JobBuilder {
         parts.join("\n\n---\n\n")
     }
 
+    /// Resolve hat env vars, replacing `from_secret` references with actual values.
+    async fn resolve_env(
+        hat: &HatConfig,
+        secrets: &dyn SecretProvider,
+    ) -> anyhow::Result<HashMap<String, String>> {
+        let mut resolved = HashMap::new();
+
+        if let Some(ref env_map) = hat.env {
+            for (key, value) in env_map {
+                match value {
+                    EnvValue::Literal(v) => {
+                        resolved.insert(key.clone(), v.clone());
+                    }
+                    EnvValue::FromSecret { from_secret } => {
+                        if let Some(secret_value) = secrets.get_secret(from_secret).await? {
+                            resolved.insert(key.clone(), secret_value);
+                        } else {
+                            anyhow::bail!(
+                                "secret '{}' not found for env var '{}'",
+                                from_secret,
+                                key
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(resolved)
+    }
+
     /// Build a complete JobSpec for the given hat activation.
-    pub fn build(
+    pub async fn build(
         &self,
         hat_id: &str,
         hat: &HatConfig,
         event: &Event,
         scratchpad: Option<&str>,
-    ) -> JobSpec {
+        secrets: &dyn SecretProvider,
+    ) -> anyhow::Result<JobSpec> {
         let prompt = Self::assemble_prompt(hat, event, &self.guardrails, scratchpad);
 
         let mut env = HashMap::new();
@@ -81,25 +114,52 @@ impl JobBuilder {
             env.insert("BORING_SCRATCHPAD_CONTENT".to_string(), content.to_string());
         }
 
-        // Use the hat's command if specified, otherwise default to echoing the prompt
+        // Resolve hat-specific env vars (including from_secret)
+        let hat_env = Self::resolve_env(hat, secrets).await?;
+        env.extend(hat_env);
+
         let command = hat
             .command
             .clone()
             .unwrap_or_else(|| "echo \"$BORING_PROMPT\"".to_string());
 
-        JobSpec {
+        Ok(JobSpec {
             hat_id: hat_id.to_string(),
             run_id: event.run_id.clone(),
             command,
             env,
             working_dir: None,
-        }
+        })
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use async_trait::async_trait;
+
+    /// Test secret provider that returns known values.
+    struct TestSecrets {
+        secrets: HashMap<String, String>,
+    }
+
+    impl TestSecrets {
+        fn empty() -> Self {
+            Self { secrets: HashMap::new() }
+        }
+
+        fn with(pairs: Vec<(&str, &str)>) -> Self {
+            let secrets = pairs.into_iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
+            Self { secrets }
+        }
+    }
+
+    #[async_trait]
+    impl SecretProvider for TestSecrets {
+        async fn get_secret(&self, name: &str) -> anyhow::Result<Option<String>> {
+            Ok(self.secrets.get(name).cloned())
+        }
+    }
 
     fn minimal_config() -> BoringConfig {
         BoringConfig::from_yaml(r#"
@@ -183,36 +243,148 @@ hats:
         assert!(!prompt.contains("Scratchpad"));
     }
 
-    #[test]
-    fn test_build_sets_env_vars() {
+    #[tokio::test]
+    async fn test_build_sets_env_vars() {
         let config = minimal_config();
         let builder = JobBuilder::new(&config);
         let hat = &config.hats["worker"];
-        let spec = builder.build("worker", hat, &test_event(), None);
+        let secrets = TestSecrets::empty();
+        let spec = builder.build("worker", hat, &test_event(), None, &secrets).await.unwrap();
 
         assert_eq!(spec.env.get("BORING_RUN_ID").unwrap(), "run-test");
         assert_eq!(spec.env.get("BORING_HAT_ID").unwrap(), "worker");
         assert_eq!(spec.env.get("BORING_EVENT_TOPIC").unwrap(), "work.start");
     }
 
-    #[test]
-    fn test_build_job_spec_hat_id_and_run_id() {
+    #[tokio::test]
+    async fn test_build_job_spec_hat_id_and_run_id() {
         let config = minimal_config();
         let builder = JobBuilder::new(&config);
         let hat = &config.hats["worker"];
-        let spec = builder.build("worker", hat, &test_event(), None);
+        let secrets = TestSecrets::empty();
+        let spec = builder.build("worker", hat, &test_event(), None, &secrets).await.unwrap();
 
         assert_eq!(spec.hat_id, "worker");
         assert_eq!(spec.run_id, "run-test");
     }
 
-    #[test]
-    fn test_build_includes_completion_promise_in_env() {
+    #[tokio::test]
+    async fn test_build_includes_completion_promise_in_env() {
         let config = minimal_config();
         let builder = JobBuilder::new(&config);
         let hat = &config.hats["worker"];
-        let spec = builder.build("worker", hat, &test_event(), None);
+        let secrets = TestSecrets::empty();
+        let spec = builder.build("worker", hat, &test_event(), None, &secrets).await.unwrap();
 
         assert_eq!(spec.env.get("BORING_COMPLETION_PROMISE").unwrap(), "LOOP_COMPLETE");
+    }
+
+    #[tokio::test]
+    async fn test_build_resolves_literal_env() {
+        let config = BoringConfig::from_yaml(r#"
+event_loop:
+  starting_event: work.start
+  completion_promise: LOOP_COMPLETE
+hats:
+  worker:
+    name: Worker
+    description: "Does work"
+    triggers: ["work.start"]
+    publishes: ["work.done"]
+    instructions: "Do it."
+    env:
+      DEBUG: "true"
+      VERBOSE: "1"
+"#).unwrap();
+
+        let builder = JobBuilder::new(&config);
+        let hat = &config.hats["worker"];
+        let secrets = TestSecrets::empty();
+        let spec = builder.build("worker", hat, &test_event(), None, &secrets).await.unwrap();
+
+        assert_eq!(spec.env.get("DEBUG").unwrap(), "true");
+        assert_eq!(spec.env.get("VERBOSE").unwrap(), "1");
+    }
+
+    #[tokio::test]
+    async fn test_build_resolves_from_secret() {
+        let config = BoringConfig::from_yaml(r#"
+event_loop:
+  starting_event: work.start
+  completion_promise: LOOP_COMPLETE
+hats:
+  worker:
+    name: Worker
+    description: "Does work"
+    triggers: ["work.start"]
+    publishes: ["work.done"]
+    instructions: "Do it."
+    env:
+      ANTHROPIC_API_KEY:
+        from_secret: anthropic-api-key
+"#).unwrap();
+
+        let builder = JobBuilder::new(&config);
+        let hat = &config.hats["worker"];
+        let secrets = TestSecrets::with(vec![("anthropic-api-key", "sk-ant-12345")]);
+        let spec = builder.build("worker", hat, &test_event(), None, &secrets).await.unwrap();
+
+        assert_eq!(spec.env.get("ANTHROPIC_API_KEY").unwrap(), "sk-ant-12345");
+    }
+
+    #[tokio::test]
+    async fn test_build_fails_on_missing_secret() {
+        let config = BoringConfig::from_yaml(r#"
+event_loop:
+  starting_event: work.start
+  completion_promise: LOOP_COMPLETE
+hats:
+  worker:
+    name: Worker
+    description: "Does work"
+    triggers: ["work.start"]
+    publishes: ["work.done"]
+    instructions: "Do it."
+    env:
+      API_KEY:
+        from_secret: nonexistent-secret
+"#).unwrap();
+
+        let builder = JobBuilder::new(&config);
+        let hat = &config.hats["worker"];
+        let secrets = TestSecrets::empty();
+        let result = builder.build("worker", hat, &test_event(), None, &secrets).await;
+
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("nonexistent-secret"));
+    }
+
+    #[tokio::test]
+    async fn test_build_mixed_literal_and_secret_env() {
+        let config = BoringConfig::from_yaml(r#"
+event_loop:
+  starting_event: work.start
+  completion_promise: LOOP_COMPLETE
+hats:
+  worker:
+    name: Worker
+    description: "Does work"
+    triggers: ["work.start"]
+    publishes: ["work.done"]
+    instructions: "Do it."
+    env:
+      DEBUG: "true"
+      API_KEY:
+        from_secret: my-key
+"#).unwrap();
+
+        let builder = JobBuilder::new(&config);
+        let hat = &config.hats["worker"];
+        let secrets = TestSecrets::with(vec![("my-key", "secret-value")]);
+        let spec = builder.build("worker", hat, &test_event(), None, &secrets).await.unwrap();
+
+        assert_eq!(spec.env.get("DEBUG").unwrap(), "true");
+        assert_eq!(spec.env.get("API_KEY").unwrap(), "secret-value");
     }
 }

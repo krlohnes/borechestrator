@@ -4,6 +4,7 @@ use boring_proto::event::Event;
 use boring_broker::Broker;
 use boring_store::Store;
 use boring_runtime::{Runtime, JobStatus};
+use boring_secrets::SecretProvider;
 
 use crate::event_router::EventRouter;
 use crate::job_builder::JobBuilder;
@@ -29,6 +30,7 @@ pub struct Reconciler {
     broker: Box<dyn Broker>,
     store: Box<dyn Store>,
     runtime: Box<dyn Runtime>,
+    secrets: Box<dyn SecretProvider>,
     event_extractor: Option<EventExtractor>,
 }
 
@@ -38,12 +40,14 @@ impl Reconciler {
         broker: Box<dyn Broker>,
         store: Box<dyn Store>,
         runtime: Box<dyn Runtime>,
+        secrets: Box<dyn SecretProvider>,
     ) -> Self {
         Self {
             config,
             broker,
             store,
             runtime,
+            secrets,
             event_extractor: None,
         }
     }
@@ -131,7 +135,7 @@ impl Reconciler {
                     .flatten()
                     .map(|bytes| String::from_utf8_lossy(&bytes).to_string());
 
-                let spec = builder.build(&hat_id, hat, &event, scratchpad.as_deref());
+                let spec = builder.build(&hat_id, hat, &event, scratchpad.as_deref(), &*self.secrets).await?;
 
                 let handle = self.runtime.create_job(spec).await?;
                 active_jobs.insert(hat_id.clone());
@@ -185,6 +189,7 @@ mod tests {
     use super::*;
     use crate::test_helpers::*;
     use boring_runtime::JobSpec;
+    use boring_secrets::NoopSecretProvider;
     use std::sync::Arc;
     use tokio::sync::Mutex;
 
@@ -236,6 +241,7 @@ hats:
             Box::new(broker),
             Box::new(store),
             Box::new(runtime),
+            Box::new(NoopSecretProvider),
         )
         .with_event_extractor(extractor);
 

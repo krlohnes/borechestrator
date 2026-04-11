@@ -21,3 +21,14 @@ pub trait SecretProvider: Send + Sync {
         Ok(self.get_secret(name).await?.is_some())
     }
 }
+
+/// A no-op provider that never finds any secrets. Useful for testing
+/// and configs that don't use `from_secret`.
+pub struct NoopSecretProvider;
+
+#[async_trait]
+impl SecretProvider for NoopSecretProvider {
+    async fn get_secret(&self, _name: &str) -> anyhow::Result<Option<String>> {
+        Ok(None)
+    }
+}

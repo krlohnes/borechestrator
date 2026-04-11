@@ -9,6 +9,7 @@ boring-proto = { path = "../boring-proto" }
 boring-broker = { path = "../boring-broker" }
 boring-store = { path = "../boring-store" }
 boring-runtime = { path = "../boring-runtime" }
+boring-secrets = { path = "../boring-secrets" }
 async-trait = { workspace = true }
 tokio = { workspace = true }
 serde_json = { workspace = true }

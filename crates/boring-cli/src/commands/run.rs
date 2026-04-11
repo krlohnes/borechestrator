@@ -4,6 +4,7 @@ use boring_proto::config::BoringConfig;
 use boring_broker::NatsBroker;
 use boring_store::LocalStore;
 use boring_runtime::LocalRuntime;
+use boring_secrets::{EnvSecretProvider, ChainSecretProvider, FileSecretProvider};
 use boring_controller::reconciler::{Reconciler, RunResult};
 
 pub async fn run(config_path: &Path) -> ExitCode {
@@ -50,11 +51,23 @@ pub async fn run(config_path: &Path) -> ExitCode {
 
     let runtime = LocalRuntime::new();
 
+    // Secret resolution chain: env vars first, then files in ~/.boring/secrets/
+    let secrets_dir = std::env::var("HOME")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_default()
+        .join(".boring")
+        .join("secrets");
+    let secrets = ChainSecretProvider::new(vec![
+        Box::new(EnvSecretProvider::new()),
+        Box::new(FileSecretProvider::new(&secrets_dir)),
+    ]);
+
     let mut reconciler = Reconciler::new(
         config,
         Box::new(broker),
         Box::new(store),
         Box::new(runtime),
+        Box::new(secrets),
     );
 
     match reconciler.run().await {
