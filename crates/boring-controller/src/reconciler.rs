@@ -183,17 +183,18 @@ impl Reconciler {
                     JobStatus::Succeeded { ref stdout } => {
                         consecutive_failures = 0;
 
-                        let parsed_events = output_parser::parse_output(
+                        let parsed = output_parser::parse_output(
                             stdout,
                             &hat_id,
                             &run_id,
                             &completion_promise,
                             global_sequence,
                         );
-                        global_sequence += parsed_events.len() as u64;
+                        global_sequence += parsed.events.len() as u64;
 
-                        if !parsed_events.is_empty() {
-                            for evt in &parsed_events {
+                        // Publish events to broker
+                        if !parsed.events.is_empty() {
+                            for evt in &parsed.events {
                                 self.broker.publish(&run_id, evt).await?;
                             }
                         } else if let Some(ref extractor) = self.event_extractor {
@@ -201,6 +202,54 @@ impl Reconciler {
                             for evt in fake_events {
                                 self.broker.publish(&run_id, &evt).await?;
                             }
+                        }
+
+                        // Persist memories
+                        if !parsed.memories.is_empty() {
+                            let mem_store = crate::memories::MemoryStore::new(&run_id);
+                            for memory in parsed.memories {
+                                mem_store.append(&*self.store, memory).await.ok();
+                            }
+                        }
+
+                        // Persist task actions
+                        if !parsed.task_actions.is_empty() {
+                            let task_store = crate::tasks::TaskStore::new(&run_id);
+                            for action in parsed.task_actions {
+                                match action {
+                                    crate::tasks::TaskAction::Add(task) => {
+                                        task_store.add(&*self.store, task).await.ok();
+                                    }
+                                    crate::tasks::TaskAction::Done(id) => {
+                                        task_store.update_status(
+                                            &*self.store,
+                                            &id,
+                                            crate::tasks::TaskStatus::Done,
+                                        ).await.ok();
+                                    }
+                                    crate::tasks::TaskAction::InProgress(id) => {
+                                        task_store.update_status(
+                                            &*self.store,
+                                            &id,
+                                            crate::tasks::TaskStatus::InProgress,
+                                        ).await.ok();
+                                    }
+                                }
+                            }
+                        }
+
+                        // Persist scratchpad updates
+                        if !parsed.scratchpad_lines.is_empty() {
+                            let sp_key = format!("{}/scratchpad/{}.md", run_id, hat_id);
+                            let existing = self.store.get(&sp_key).await.ok().flatten()
+                                .map(|b| String::from_utf8_lossy(&b).to_string())
+                                .unwrap_or_default();
+                            let new_content = format!(
+                                "{}\n{}",
+                                existing,
+                                parsed.scratchpad_lines.join("\n")
+                            );
+                            self.store.put(&sp_key, new_content.into_bytes()).await.ok();
                         }
                     }
                     JobStatus::Failed { reason, .. } => {

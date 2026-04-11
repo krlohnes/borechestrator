@@ -124,6 +124,7 @@ pub fn parse_task_line(line: &str, source: &str) -> Option<TaskAction> {
     }
 }
 
+#[derive(Debug)]
 pub enum TaskAction {
     Add(Task),
     Done(String),       // task id

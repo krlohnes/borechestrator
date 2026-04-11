@@ -1,18 +1,36 @@
 use boring_proto::event::Event;
+use crate::memories::Memory;
+use crate::tasks::{TaskAction, Task, TaskStatus};
+use crate::human::HumanAction;
 
-/// Parse agent stdout for emitted events and completion signals.
+/// Everything parsed from agent stdout.
+#[derive(Debug, Default)]
+pub struct ParsedOutput {
+    pub events: Vec<Event>,
+    pub memories: Vec<Memory>,
+    pub task_actions: Vec<TaskAction>,
+    pub human_actions: Vec<HumanAction>,
+    pub scratchpad_lines: Vec<String>,
+}
+
+/// Parse agent stdout for all borechestrator markers.
 ///
-/// Convention:
-/// - `BORING_EMIT <topic> <payload...>` → emits an event with that topic and payload
-/// - If the completion_promise string appears on any line → emits a system completion event
+/// Conventions:
+/// - `BORING_EMIT <topic> <payload...>` → event
+/// - `BORING_MEMORY <type> <content>` → memory
+/// - `BORING_TASK <add|done|progress> <arg>` → task action
+/// - `BORING_HUMAN <question>` → human interaction (ask)
+/// - `BORING_NOTIFY <message>` → human interaction (notify)
+/// - `BORING_SCRATCHPAD <content>` → scratchpad append
+/// - completion_promise string on any line → system completion event
 pub fn parse_output(
     stdout: &str,
     hat_id: &str,
     run_id: &str,
     completion_promise: &str,
     base_sequence: u64,
-) -> Vec<Event> {
-    let mut events = Vec::new();
+) -> ParsedOutput {
+    let mut result = ParsedOutput::default();
     let mut seq = base_sequence;
     let mut completion_found = false;
 
@@ -20,23 +38,78 @@ pub fn parse_output(
         let trimmed = line.trim();
 
         if let Some(rest) = trimmed.strip_prefix("BORING_EMIT ") {
-            // Split into topic and payload (topic is first word, rest is payload)
             let mut parts = rest.splitn(2, ' ');
             if let Some(topic) = parts.next() {
                 let payload = parts.next().unwrap_or("");
                 if !topic.is_empty() {
-                    events.push(Event::new(topic, payload, Some(hat_id), run_id, seq));
+                    result.events.push(Event::new(topic, payload, Some(hat_id), run_id, seq));
                     seq += 1;
                 }
             }
+        } else if let Some(rest) = trimmed.strip_prefix("BORING_MEMORY ") {
+            let mut parts = rest.splitn(2, ' ');
+            if let Some(memory_type) = parts.next() {
+                let content = parts.next().unwrap_or("");
+                if !memory_type.is_empty() {
+                    result.memories.push(Memory {
+                        memory_type: memory_type.to_string(),
+                        content: content.to_string(),
+                        source: hat_id.to_string(),
+                        timestamp: chrono::Utc::now().to_rfc3339(),
+                    });
+                }
+            }
+        } else if let Some(rest) = trimmed.strip_prefix("BORING_TASK ") {
+            let mut parts = rest.splitn(2, ' ');
+            if let Some(action) = parts.next() {
+                let arg = parts.next().unwrap_or("");
+                match action {
+                    "add" => {
+                        result.task_actions.push(TaskAction::Add(Task {
+                            id: format!("task-{}", seq),
+                            title: arg.to_string(),
+                            status: TaskStatus::Pending,
+                            priority: None,
+                            assigned_to: None,
+                            depends_on: Vec::new(),
+                            created_by: hat_id.to_string(),
+                            timestamp: chrono::Utc::now().to_rfc3339(),
+                        }));
+                    }
+                    "done" => {
+                        result.task_actions.push(TaskAction::Done(arg.to_string()));
+                    }
+                    "progress" => {
+                        result.task_actions.push(TaskAction::InProgress(arg.to_string()));
+                    }
+                    _ => {}
+                }
+            }
+        } else if let Some(question) = trimmed.strip_prefix("BORING_HUMAN ") {
+            result.human_actions.push(HumanAction::Ask(question.to_string()));
+        } else if let Some(message) = trimmed.strip_prefix("BORING_NOTIFY ") {
+            result.human_actions.push(HumanAction::Notify(message.to_string()));
+        } else if let Some(content) = trimmed.strip_prefix("BORING_SCRATCHPAD ") {
+            result.scratchpad_lines.push(content.to_string());
         } else if !completion_found && trimmed.contains(completion_promise) {
             completion_found = true;
-            events.push(Event::system_completion(run_id, completion_promise, seq));
+            result.events.push(Event::system_completion(run_id, completion_promise, seq));
             seq += 1;
         }
     }
 
-    events
+    result
+}
+
+/// Convenience: extract just events (backward compat for reconciler).
+pub fn parse_events(
+    stdout: &str,
+    hat_id: &str,
+    run_id: &str,
+    completion_promise: &str,
+    base_sequence: u64,
+) -> Vec<Event> {
+    parse_output(stdout, hat_id, run_id, completion_promise, base_sequence).events
 }
 
 #[cfg(test)]
@@ -46,106 +119,172 @@ mod tests {
     #[test]
     fn test_parse_emit_event() {
         let stdout = "some output\nBORING_EMIT subtask.ready implement the parser\nmore output\n";
-        let events = parse_output(stdout, "planner", "run-abc", "LOOP_COMPLETE", 0);
+        let result = parse_output(stdout, "planner", "run-abc", "LOOP_COMPLETE", 0);
 
-        assert_eq!(events.len(), 1);
-        assert_eq!(events[0].topic, "subtask.ready");
-        assert_eq!(events[0].payload, "implement the parser");
-        assert_eq!(events[0].source, Some("planner".to_string()));
-        assert_eq!(events[0].run_id, "run-abc");
+        assert_eq!(result.events.len(), 1);
+        assert_eq!(result.events[0].topic, "subtask.ready");
+        assert_eq!(result.events[0].payload, "implement the parser");
+        assert_eq!(result.events[0].source, Some("planner".to_string()));
     }
 
     #[test]
     fn test_parse_emit_no_payload() {
-        let stdout = "BORING_EMIT work.done\n";
-        let events = parse_output(stdout, "builder", "run-abc", "LOOP_COMPLETE", 0);
-
-        assert_eq!(events.len(), 1);
-        assert_eq!(events[0].topic, "work.done");
-        assert_eq!(events[0].payload, "");
+        let result = parse_output("BORING_EMIT work.done\n", "builder", "run-abc", "LOOP_COMPLETE", 0);
+        assert_eq!(result.events.len(), 1);
+        assert_eq!(result.events[0].topic, "work.done");
+        assert_eq!(result.events[0].payload, "");
     }
 
     #[test]
     fn test_parse_completion_promise() {
-        let stdout = "did some work\nLOOP_COMPLETE\n";
-        let events = parse_output(stdout, "builder", "run-abc", "LOOP_COMPLETE", 0);
-
-        assert_eq!(events.len(), 1);
-        assert!(events[0].is_completion("LOOP_COMPLETE"));
+        let result = parse_output("did some work\nLOOP_COMPLETE\n", "builder", "run-abc", "LOOP_COMPLETE", 0);
+        assert_eq!(result.events.len(), 1);
+        assert!(result.events[0].is_completion("LOOP_COMPLETE"));
     }
 
     #[test]
     fn test_parse_completion_inline() {
-        let stdout = "all done LOOP_COMPLETE here\n";
-        let events = parse_output(stdout, "builder", "run-abc", "LOOP_COMPLETE", 0);
-
-        assert_eq!(events.len(), 1);
-        assert!(events[0].is_completion("LOOP_COMPLETE"));
+        let result = parse_output("all done LOOP_COMPLETE here\n", "builder", "run-abc", "LOOP_COMPLETE", 0);
+        assert_eq!(result.events.len(), 1);
+        assert!(result.events[0].is_completion("LOOP_COMPLETE"));
     }
 
     #[test]
     fn test_parse_multiple_emits() {
-        let stdout = "BORING_EMIT step.one first\nBORING_EMIT step.two second\n";
-        let events = parse_output(stdout, "worker", "run-abc", "LOOP_COMPLETE", 0);
-
-        assert_eq!(events.len(), 2);
-        assert_eq!(events[0].topic, "step.one");
-        assert_eq!(events[0].payload, "first");
-        assert_eq!(events[0].sequence, 0);
-        assert_eq!(events[1].topic, "step.two");
-        assert_eq!(events[1].payload, "second");
-        assert_eq!(events[1].sequence, 1);
+        let result = parse_output("BORING_EMIT step.one first\nBORING_EMIT step.two second\n", "worker", "run-abc", "LOOP_COMPLETE", 0);
+        assert_eq!(result.events.len(), 2);
+        assert_eq!(result.events[0].topic, "step.one");
+        assert_eq!(result.events[1].topic, "step.two");
+        assert_eq!(result.events[0].sequence, 0);
+        assert_eq!(result.events[1].sequence, 1);
     }
 
     #[test]
     fn test_parse_emit_and_completion() {
-        let stdout = "BORING_EMIT subtask.ready go\nLOOP_COMPLETE\n";
-        let events = parse_output(stdout, "planner", "run-abc", "LOOP_COMPLETE", 0);
-
-        assert_eq!(events.len(), 2);
-        assert_eq!(events[0].topic, "subtask.ready");
-        assert!(events[1].is_completion("LOOP_COMPLETE"));
+        let result = parse_output("BORING_EMIT subtask.ready go\nLOOP_COMPLETE\n", "planner", "run-abc", "LOOP_COMPLETE", 0);
+        assert_eq!(result.events.len(), 2);
+        assert_eq!(result.events[0].topic, "subtask.ready");
+        assert!(result.events[1].is_completion("LOOP_COMPLETE"));
     }
 
     #[test]
     fn test_parse_no_events() {
-        let stdout = "just regular output\nnothing interesting\n";
-        let events = parse_output(stdout, "worker", "run-abc", "LOOP_COMPLETE", 0);
-
-        assert!(events.is_empty());
+        let result = parse_output("just regular output\n", "worker", "run-abc", "LOOP_COMPLETE", 0);
+        assert!(result.events.is_empty());
     }
 
     #[test]
     fn test_parse_empty_stdout() {
-        let events = parse_output("", "worker", "run-abc", "LOOP_COMPLETE", 0);
-        assert!(events.is_empty());
+        let result = parse_output("", "worker", "run-abc", "LOOP_COMPLETE", 0);
+        assert!(result.events.is_empty());
     }
 
     #[test]
     fn test_parse_completion_only_emitted_once() {
-        let stdout = "LOOP_COMPLETE\nmore stuff\nLOOP_COMPLETE again\n";
-        let events = parse_output(stdout, "worker", "run-abc", "LOOP_COMPLETE", 0);
-
-        let completions: Vec<_> = events.iter().filter(|e| e.is_completion("LOOP_COMPLETE")).collect();
+        let result = parse_output("LOOP_COMPLETE\nmore\nLOOP_COMPLETE again\n", "worker", "run-abc", "LOOP_COMPLETE", 0);
+        let completions: Vec<_> = result.events.iter().filter(|e| e.is_completion("LOOP_COMPLETE")).collect();
         assert_eq!(completions.len(), 1);
     }
 
     #[test]
     fn test_parse_emit_with_leading_whitespace() {
-        let stdout = "  BORING_EMIT work.done all finished\n";
-        let events = parse_output(stdout, "worker", "run-abc", "LOOP_COMPLETE", 0);
-
-        assert_eq!(events.len(), 1);
-        assert_eq!(events[0].topic, "work.done");
-        assert_eq!(events[0].payload, "all finished");
+        let result = parse_output("  BORING_EMIT work.done all finished\n", "worker", "run-abc", "LOOP_COMPLETE", 0);
+        assert_eq!(result.events.len(), 1);
+        assert_eq!(result.events[0].payload, "all finished");
     }
 
     #[test]
     fn test_sequence_starts_at_base() {
-        let stdout = "BORING_EMIT a first\nBORING_EMIT b second\n";
-        let events = parse_output(stdout, "worker", "run-abc", "LOOP_COMPLETE", 42);
+        let result = parse_output("BORING_EMIT a first\nBORING_EMIT b second\n", "worker", "run-abc", "LOOP_COMPLETE", 42);
+        assert_eq!(result.events[0].sequence, 42);
+        assert_eq!(result.events[1].sequence, 43);
+    }
 
-        assert_eq!(events[0].sequence, 42);
-        assert_eq!(events[1].sequence, 43);
+    // ── New marker tests ────────────────────────────────────────
+
+    #[test]
+    fn test_parse_memory() {
+        let result = parse_output("BORING_MEMORY pattern Always use snake_case\n", "builder", "run-abc", "LOOP_COMPLETE", 0);
+        assert_eq!(result.memories.len(), 1);
+        assert_eq!(result.memories[0].memory_type, "pattern");
+        assert_eq!(result.memories[0].content, "Always use snake_case");
+        assert_eq!(result.memories[0].source, "builder");
+    }
+
+    #[test]
+    fn test_parse_task_add() {
+        let result = parse_output("BORING_TASK add Implement user auth\n", "planner", "run-abc", "LOOP_COMPLETE", 0);
+        assert_eq!(result.task_actions.len(), 1);
+        match &result.task_actions[0] {
+            TaskAction::Add(task) => {
+                assert_eq!(task.title, "Implement user auth");
+                assert_eq!(task.created_by, "planner");
+            }
+            _ => panic!("expected Add"),
+        }
+    }
+
+    #[test]
+    fn test_parse_task_done() {
+        let result = parse_output("BORING_TASK done task-42\n", "builder", "run-abc", "LOOP_COMPLETE", 0);
+        assert_eq!(result.task_actions.len(), 1);
+        match &result.task_actions[0] {
+            TaskAction::Done(id) => assert_eq!(id, "task-42"),
+            _ => panic!("expected Done"),
+        }
+    }
+
+    #[test]
+    fn test_parse_human_ask() {
+        let result = parse_output("BORING_HUMAN Should I proceed with the migration?\n", "builder", "run-abc", "LOOP_COMPLETE", 0);
+        assert_eq!(result.human_actions.len(), 1);
+        match &result.human_actions[0] {
+            HumanAction::Ask(q) => assert_eq!(q, "Should I proceed with the migration?"),
+            _ => panic!("expected Ask"),
+        }
+    }
+
+    #[test]
+    fn test_parse_notify() {
+        let result = parse_output("BORING_NOTIFY Build completed\n", "builder", "run-abc", "LOOP_COMPLETE", 0);
+        assert_eq!(result.human_actions.len(), 1);
+        match &result.human_actions[0] {
+            HumanAction::Notify(m) => assert_eq!(m, "Build completed"),
+            _ => panic!("expected Notify"),
+        }
+    }
+
+    #[test]
+    fn test_parse_scratchpad() {
+        let result = parse_output("BORING_SCRATCHPAD Step 3 done\nBORING_SCRATCHPAD Moving to step 4\n", "worker", "run-abc", "LOOP_COMPLETE", 0);
+        assert_eq!(result.scratchpad_lines.len(), 2);
+        assert_eq!(result.scratchpad_lines[0], "Step 3 done");
+        assert_eq!(result.scratchpad_lines[1], "Moving to step 4");
+    }
+
+    #[test]
+    fn test_parse_all_markers_mixed() {
+        let stdout = "\
+BORING_EMIT subtask.ready go
+BORING_MEMORY decision Chose async approach
+BORING_TASK add Write tests
+BORING_HUMAN Approve this change?
+BORING_NOTIFY Starting build
+BORING_SCRATCHPAD Progress updated
+LOOP_COMPLETE
+";
+        let result = parse_output(stdout, "planner", "run-abc", "LOOP_COMPLETE", 0);
+
+        assert_eq!(result.events.len(), 2); // emit + completion
+        assert_eq!(result.memories.len(), 1);
+        assert_eq!(result.task_actions.len(), 1);
+        assert_eq!(result.human_actions.len(), 2); // ask + notify
+        assert_eq!(result.scratchpad_lines.len(), 1);
+    }
+
+    #[test]
+    fn test_parse_events_compat() {
+        let events = parse_events("BORING_EMIT work.done\nLOOP_COMPLETE\n", "w", "r", "LOOP_COMPLETE", 0);
+        assert_eq!(events.len(), 2);
     }
 }

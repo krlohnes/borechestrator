@@ -75,6 +75,7 @@ pub fn parse_notify_line(line: &str) -> Option<String> {
 }
 
 /// Represents a parsed human interaction event from stdout.
+#[derive(Debug)]
 pub enum HumanAction {
     Ask(String),
     Notify(String),
