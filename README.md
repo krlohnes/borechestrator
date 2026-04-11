@@ -231,6 +231,114 @@ env:
     from_secret: anthropic-api-key
 ```
 
+## Building Agent Images
+
+Borechestrator doesn't care what's in the container. Its job is orchestration — routing events, scheduling jobs, managing state. What AI tool you use, what MCP servers you run, what skills you install — that's your Dockerfile.
+
+The base image has `boring-agent`, which handles the plumbing (S3 sync, NATS events, git). You add the AI tool on top:
+
+### Claude Code
+
+```dockerfile
+FROM borechestrator/agent:latest
+
+# Install Claude Code
+RUN curl -fsSL https://claude.ai/install.sh | sh
+
+# Your MCP servers, skills, CLAUDE.md, whatever
+COPY .claude/ /home/agent/.claude/
+COPY CLAUDE.md /workspace/CLAUDE.md
+```
+
+### Claude Code + MCP Servers
+
+```dockerfile
+FROM borechestrator/agent:latest
+
+RUN curl -fsSL https://claude.ai/install.sh | sh
+RUN npm install -g @modelcontextprotocol/server-github
+RUN npm install -g @anthropic/mcp-server-postgres
+
+COPY .claude/ /home/agent/.claude/
+```
+
+### Codex (for review hats)
+
+```dockerfile
+FROM borechestrator/agent:latest
+
+RUN npm install -g @openai/codex
+```
+
+### Custom Python Agent
+
+```dockerfile
+FROM borechestrator/agent:latest
+
+RUN pip install anthropic
+COPY my_agent.py /usr/local/bin/my-agent
+RUN chmod +x /usr/local/bin/my-agent
+```
+
+### Mixed Models in One Orchestration
+
+The whole point of hats is that each one can be a different tool:
+
+```yaml
+cli:
+  backend: claude  # default for hats without a command
+
+hats:
+  planner:
+    name: Planner
+    # Uses default backend (claude)
+    instructions: |
+      Break the work into tasks...
+
+  builder:
+    name: Builder
+    image: ghcr.io/myorg/claude-with-mcp:latest
+    # Custom image with MCP servers for database access
+    instructions: |
+      Implement the feature...
+
+  reviewer:
+    name: Reviewer
+    image: ghcr.io/myorg/codex-reviewer:latest
+    command: "codex \"$BORING_PROMPT\""
+    # Different model, different strengths
+    instructions: |
+      Review for correctness and edge cases...
+```
+
+### The `.boring/` Directory
+
+Every agent container gets a `.boring/` directory materialized from S3 before the command runs. The AI CLI can grep and read it like any other file:
+
+```
+.boring/
+  prompt.md              # the assembled prompt
+  event.json             # current event context
+  scratchpad/            # all hat scratchpads (cross-hat visible)
+    planner.md
+    builder.md
+    shared.md
+  memories.md            # human-readable learned patterns
+  memories.json          # raw JSON for programmatic access
+  tasks.md               # task checklist
+  tasks.json             # raw JSON
+```
+
+Your AI tool doesn't need a special plugin or API to access orchestration state. It's just files. `grep -r "pattern" .boring/` works. `cat .boring/memories.md` works. Whatever your tool does with files, it does with `.boring/`.
+
+After the command finishes, `boring-agent` syncs modified files back to S3 and commits them to git. Other hats in the same run can see your scratchpad updates on their next activation.
+
+### What Borechestrator Is Not
+
+Borechestrator is not a framework for building AI agents. It doesn't wrap the Anthropic API. It doesn't manage conversation history. It doesn't handle tool use or function calling. There are plenty of frameworks for that, and they're all trying to be clever.
+
+Borechestrator is the boring glue between agents that already exist. You bring the agent. We bring the plumbing.
+
 ## Status
 
 This is early. The local-mode pipeline works end-to-end. Here's what exists and what doesn't:
@@ -253,10 +361,21 @@ This is early. The local-mode pipeline works end-to-end. Here's what exists and 
 - [x] Backpressure gates (global + per-hat quality checks)
 - [x] Concurrent hat execution (parallel job creation)
 - [x] Metrics (atomic counters, JSON snapshots)
-- [x] `boring init` scaffolding (6 presets)
+- [x] `boring init` scaffolding (12 presets)
+- [x] Multi-backend abstraction (`cli.backend`)
+- [x] prompt_file support + CLI `-p` / `-P` flags
+- [x] Memories system (pattern, decision, fix, context)
+- [x] Tasks system (work item tracking)
+- [x] Hooks system (pre/post lifecycle events)
+- [x] wave_id event grouping
+- [x] required_events fan-in barrier
+- [x] Run checkpointing
+- [x] Human-in-the-loop (CLI + extensible trait)
+- [x] `.boring/` workspace materialization (grep-friendly state)
 - [ ] `boring status` / `boring logs` commands
 - [ ] OTel tracing bridge
 - [ ] Helm chart for borechestrator controller itself
+- [ ] Published base agent Docker image
 
 ## Name
 
