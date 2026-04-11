@@ -21,7 +21,7 @@ done
 echo ""
 echo "Waiting for RustFS..."
 for i in $(seq 1 30); do
-    if curl -sf http://localhost:9100/minio/health/live > /dev/null 2>&1; then
+    if curl -sf http://localhost:9000/minio/health/live > /dev/null 2>&1; then
         echo "RustFS is ready (S3: port 9100, Console: port 9101)"
         break
     fi
@@ -32,6 +32,6 @@ echo ""
 echo "Infrastructure ready:"
 echo "  NATS:           nats://localhost:4222"
 echo "  NATS Monitor:   http://localhost:8222"
-echo "  RustFS S3:      http://localhost:9100"
-echo "  RustFS Console: http://localhost:9101"
+echo "  RustFS S3:      http://localhost:9000"
+echo "  RustFS Console: http://localhost:9001"
 echo "  RustFS Creds:   boreadmin / boreadmin"
