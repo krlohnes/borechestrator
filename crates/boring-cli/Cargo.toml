@@ -1,0 +1,24 @@
+[package]
+name = "boring-cli"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "boring-cli"
+path = "src/main.rs"
+
+[dependencies]
+boring-proto = { path = "../boring-proto" }
+boring-broker = { path = "../boring-broker" }
+boring-store = { path = "../boring-store" }
+boring-controller = { path = "../boring-controller" }
+boring-runtime = { path = "../boring-runtime" }
+clap = { workspace = true }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
