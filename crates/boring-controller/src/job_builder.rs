@@ -8,6 +8,10 @@ use boring_secrets::SecretProvider;
 pub struct JobBuilder {
     completion_promise: String,
     guardrails: Vec<String>,
+    git_repo: Option<String>,
+    git_base_branch: Option<String>,
+    git_branch_strategy: Option<String>,
+    git_credentials_secret: Option<String>,
 }
 
 impl JobBuilder {
@@ -18,9 +22,27 @@ impl JobBuilder {
             .map(|c| c.guardrails.clone())
             .unwrap_or_default();
 
+        let (git_repo, git_base_branch, git_branch_strategy, git_credentials_secret) =
+            if let Some(ref git) = config.git {
+                (
+                    Some(git.repo.clone()),
+                    git.base_branch.clone(),
+                    git.branch_strategy
+                        .as_ref()
+                        .map(|s| format!("{:?}", s).to_lowercase()),
+                    git.credentials.as_ref().map(|c| c.from_secret.clone()),
+                )
+            } else {
+                (None, None, None, None)
+            };
+
         Self {
             completion_promise: config.event_loop.completion_promise.clone(),
             guardrails,
+            git_repo,
+            git_base_branch,
+            git_branch_strategy,
+            git_credentials_secret,
         }
     }
 
@@ -117,6 +139,23 @@ impl JobBuilder {
         // Resolve hat-specific env vars (including from_secret)
         let hat_env = Self::resolve_env(hat, secrets).await?;
         env.extend(hat_env);
+
+        // Git config
+        if let Some(ref repo) = self.git_repo {
+            env.insert("BORING_GIT_REPO".to_string(), repo.clone());
+            if let Some(ref branch) = self.git_base_branch {
+                env.insert("BORING_GIT_BASE_BRANCH".to_string(), branch.clone());
+            }
+            if let Some(ref strategy) = self.git_branch_strategy {
+                env.insert("BORING_GIT_BRANCH_STRATEGY".to_string(), strategy.clone());
+            }
+            // Resolve git credentials secret
+            if let Some(ref secret_name) = self.git_credentials_secret {
+                if let Some(token) = secrets.get_secret(secret_name).await? {
+                    env.insert("BORING_GIT_TOKEN".to_string(), token);
+                }
+            }
+        }
 
         let command = hat
             .command

@@ -1,3 +1,5 @@
+mod git;
+
 use anyhow::Context;
 use boring_broker::{Broker, NatsBroker};
 use boring_proto::event::Event;
@@ -23,6 +25,10 @@ struct AgentEnv {
     store_access_key: String,
     store_secret_key: String,
     command: Option<String>,
+    git_repo: Option<String>,
+    git_base_branch: String,
+    git_branch_strategy: String,
+    git_token: Option<String>,
 }
 
 impl AgentEnv {
@@ -50,6 +56,12 @@ impl AgentEnv {
             store_secret_key: std::env::var("BORING_STORE_SECRET_KEY")
                 .unwrap_or_else(|_| "rustfsadmin".to_string()),
             command: std::env::var("BORING_COMMAND").ok(),
+            git_repo: std::env::var("BORING_GIT_REPO").ok(),
+            git_base_branch: std::env::var("BORING_GIT_BASE_BRANCH")
+                .unwrap_or_else(|_| "main".to_string()),
+            git_branch_strategy: std::env::var("BORING_GIT_BRANCH_STRATEGY")
+                .unwrap_or_else(|_| "shared".to_string()),
+            git_token: std::env::var("BORING_GIT_TOKEN").ok(),
         })
     }
 }
@@ -98,6 +110,29 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
+    // Clone git repo if configured
+    let work_dir = if let Some(ref repo) = env.git_repo {
+        let work_branch = match env.git_branch_strategy.as_str() {
+            "per_hat" => format!("bore/{}/{}", env.run_id, env.hat_id),
+            _ => format!("bore/{}/main", env.run_id),
+        };
+
+        let target = std::env::temp_dir().join(format!("boring-{}-{}", env.run_id, env.hat_id));
+        git::clone_and_checkout(
+            repo,
+            &env.git_base_branch,
+            &work_branch,
+            &target,
+            env.git_token.as_deref(),
+        )
+        .await
+        .context("git clone failed")?;
+
+        Some((target, work_branch))
+    } else {
+        None
+    };
+
     // Determine what command to run
     let command = env.command.unwrap_or_else(|| {
         // Default: pipe the prompt to the AI CLI via echo
@@ -107,18 +142,21 @@ async fn main() -> anyhow::Result<()> {
     info!(command = %command, "executing agent command");
 
     // Run the command
-    let output = Command::new("sh")
-        .arg("-c")
+    let mut cmd = Command::new("sh");
+    cmd.arg("-c")
         .arg(&command)
         .env("BORING_PROMPT", &env.prompt)
         .env("BORING_SCRATCHPAD", scratchpad.as_deref().unwrap_or(""))
         .env("BORING_EVENT_TOPIC", &env.event_topic)
         .env("BORING_EVENT_PAYLOAD", &env.event_payload)
         .stdout(Stdio::piped())
-        .stderr(Stdio::inherit())
-        .output()
-        .await
-        .context("failed to execute command")?;
+        .stderr(Stdio::inherit());
+
+    if let Some((ref dir, _)) = work_dir {
+        cmd.current_dir(dir);
+    }
+
+    let output = cmd.output().await.context("failed to execute command")?;
 
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
 
@@ -162,6 +200,15 @@ async fn main() -> anyhow::Result<()> {
             seq += 1;
         } else if let Some(rest) = trimmed.strip_prefix("BORING_SCRATCHPAD ") {
             scratchpad_updates.push(rest.to_string());
+        }
+    }
+
+    // Push git changes if we cloned a repo
+    if let Some((ref dir, ref branch)) = work_dir {
+        match git::push(dir, branch).await {
+            Ok(true) => info!("pushed changes to {}", branch),
+            Ok(false) => info!("no changes to push"),
+            Err(e) => error!("git push failed: {}", e),
         }
     }
 
