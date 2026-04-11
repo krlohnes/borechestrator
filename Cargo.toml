@@ -6,6 +6,7 @@ members = [
     "crates/boring-store",
     "crates/boring-controller",
     "crates/boring-runtime",
+    "crates/boring-secrets",
     "crates/boring-agent",
     "crates/boring-cli",
 ]
@@ -37,7 +38,7 @@ aws-config = "1"
 
 # Kubernetes
 kube = { version = "0.99", features = ["runtime", "derive"] }
-k8s-openapi = { version = "0.23", features = ["latest"] }
+k8s-openapi = { version = "0.24", features = ["latest"] }
 
 # Observability
 tracing = "0.1"

@@ -1,0 +1,31 @@
+[package]
+name = "boring-secrets"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+async-trait = { workspace = true }
+tokio = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# K8s (optional)
+kube = { workspace = true, optional = true }
+k8s-openapi = { workspace = true, optional = true }
+
+# AWS (optional)
+# Pin to versions compatible with rustc 1.88
+aws-sdk-secretsmanager = { version = "1.86", optional = true }
+aws-config = { version = "1.6", optional = true }
+
+[features]
+default = []
+k8s = ["dep:kube", "dep:k8s-openapi"]
+aws = ["dep:aws-sdk-secretsmanager", "dep:aws-config"]
+
+[dev-dependencies]
+tokio = { workspace = true }
+tempfile = { workspace = true }
