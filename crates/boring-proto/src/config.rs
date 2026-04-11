@@ -26,6 +26,8 @@ pub struct BoringConfig {
     pub broker: Option<BrokerConfig>,
     pub git: Option<GitConfig>,
     pub backpressure: Option<BackpressureConfig>,
+    pub memories: Option<MemoriesConfig>,
+    pub tasks: Option<TasksConfig>,
     pub core: Option<CoreConfig>,
     pub hats: HashMap<String, HatConfig>,
 }
@@ -187,6 +189,30 @@ pub struct GitCredentials {
 pub struct CoreConfig {
     #[serde(default)]
     pub guardrails: Vec<String>,
+}
+
+/// Memories config for cross-iteration learning.
+#[derive(Debug, Deserialize)]
+pub struct MemoriesConfig {
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    /// auto, manual, or none
+    #[serde(default = "default_inject")]
+    pub inject: String,
+    /// Max tokens to inject into prompts
+    #[serde(default = "default_budget")]
+    pub budget: usize,
+}
+
+fn default_true() -> bool { true }
+fn default_inject() -> String { "auto".to_string() }
+fn default_budget() -> usize { 2000 }
+
+/// Tasks config for work item tracking.
+#[derive(Debug, Deserialize)]
+pub struct TasksConfig {
+    #[serde(default = "default_true")]
+    pub enabled: bool,
 }
 
 #[derive(Debug, Deserialize)]
