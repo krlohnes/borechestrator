@@ -117,6 +117,9 @@ impl Reconciler {
 
             let hat_ids = router.route_with_state(&event, &activations);
 
+            // Phase 1: Create all jobs concurrently (hats run in parallel)
+            let mut pending_handles: Vec<(String, boring_runtime::JobHandle)> = Vec::new();
+
             for hat_id in hat_ids {
                 if active_jobs.contains(&hat_id) {
                     continue;
@@ -166,6 +169,12 @@ impl Reconciler {
                 iterations += 1;
                 *activations.entry(hat_id.clone()).or_insert(0) += 1;
 
+                pending_handles.push((hat_id, handle));
+            }
+
+            // Phase 2: Wait for all jobs to complete
+            // Jobs are already running concurrently; we poll each one.
+            for (hat_id, handle) in pending_handles {
                 let status = self.runtime.wait_job(&handle).await?;
                 active_jobs.remove(&hat_id);
 
@@ -173,7 +182,6 @@ impl Reconciler {
                     JobStatus::Succeeded { ref stdout } => {
                         consecutive_failures = 0;
 
-                        // Parse stdout for BORING_EMIT lines and completion promise
                         let parsed_events = output_parser::parse_output(
                             stdout,
                             &hat_id,
@@ -183,13 +191,11 @@ impl Reconciler {
                         );
                         global_sequence += parsed_events.len() as u64;
 
-                        // If stdout had events, publish them
                         if !parsed_events.is_empty() {
                             for evt in &parsed_events {
                                 self.broker.publish(&run_id, evt).await?;
                             }
                         } else if let Some(ref extractor) = self.event_extractor {
-                            // Fallback for test fakes that don't produce stdout
                             let fake_events = extractor(&handle.id);
                             for evt in fake_events {
                                 self.broker.publish(&run_id, &evt).await?;
