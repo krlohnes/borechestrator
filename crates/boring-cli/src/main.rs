@@ -45,6 +45,19 @@ enum Commands {
         #[arg(long)]
         list: bool,
     },
+    /// Show the status of a run
+    Status {
+        /// Run ID (shows latest if omitted)
+        run_id: Option<String>,
+    },
+    /// Show logs/events for a run
+    Logs {
+        /// Run ID
+        run_id: String,
+        /// Filter by hat name
+        #[arg(long)]
+        hat: Option<String>,
+    },
     /// Emit an event into a running orchestration
     Emit {
         /// Run ID
@@ -67,6 +80,14 @@ fn main() -> ExitCode {
         }
         Commands::Init { preset, list } => {
             commands::init::run(preset.as_deref(), list)
+        }
+        Commands::Status { run_id } => {
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            rt.block_on(commands::status::run(run_id.as_deref()))
+        }
+        Commands::Logs { run_id, hat } => {
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            rt.block_on(commands::logs::run(&run_id, hat.as_deref()))
         }
         Commands::Emit {
             run_id,
