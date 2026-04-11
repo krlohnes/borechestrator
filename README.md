@@ -372,10 +372,10 @@ This is early. The local-mode pipeline works end-to-end. Here's what exists and 
 - [x] Run checkpointing
 - [x] Human-in-the-loop (CLI + extensible trait)
 - [x] `.boring/` workspace materialization (grep-friendly state)
-- [ ] `boring status` / `boring logs` commands
-- [ ] OTel tracing bridge
-- [ ] Helm chart for borechestrator controller itself
-- [ ] Published base agent Docker image
+- [x] `boring status` / `boring logs` commands
+- [x] OTel tracing bridge (feature-gated, OTLP export)
+- [x] Helm chart for borechestrator controller
+- [x] Docker images + GitHub Actions CI/CD
 
 ## Name
 
