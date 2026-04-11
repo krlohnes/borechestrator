@@ -43,6 +43,10 @@ k8s-openapi = { version = "0.24", features = ["latest"] }
 # Observability
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+tracing-opentelemetry = "0.28"
+opentelemetry = "0.27"
+opentelemetry_sdk = { version = "0.27", features = ["rt-tokio"] }
+opentelemetry-otlp = "0.27"
 
 # Error handling
 thiserror = "2"

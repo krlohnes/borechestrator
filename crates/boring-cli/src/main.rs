@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 mod commands;
+mod observability;
 
 #[derive(Parser)]
 #[command(name = "boring", about = "The world's most boring AI agent orchestrator")]
@@ -70,6 +71,7 @@ enum Commands {
 }
 
 fn main() -> ExitCode {
+    observability::init();
     let cli = Cli::parse();
 
     match cli.command {
