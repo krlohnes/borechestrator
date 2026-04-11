@@ -1,6 +1,7 @@
 pub mod backpressure;
 pub mod event_router;
 pub mod job_builder;
+pub mod metrics;
 pub mod output_parser;
 pub mod reconciler;
 
