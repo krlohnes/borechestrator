@@ -28,6 +28,14 @@ enum Commands {
         #[arg(long)]
         mode: Option<String>,
     },
+    /// Initialize a new borechestrator.yml from a preset
+    Init {
+        /// Preset name (e.g., feature, tdd, research, debug, review, minimal)
+        preset: Option<String>,
+        /// List available presets
+        #[arg(long)]
+        list: bool,
+    },
     /// Emit an event into a running orchestration
     Emit {
         /// Run ID
@@ -47,6 +55,9 @@ fn main() -> ExitCode {
         Commands::Run { config, mode: _ } => {
             let rt = tokio::runtime::Runtime::new().unwrap();
             rt.block_on(commands::run::run(&config))
+        }
+        Commands::Init { preset, list } => {
+            commands::init::run(preset.as_deref(), list)
         }
         Commands::Emit {
             run_id,
