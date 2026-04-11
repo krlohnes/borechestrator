@@ -2,6 +2,8 @@
 
 The world's most boring AI agent orchestrator.
 
+*Your agents scale until AWS and Anthropic both send you emails.*
+
 ## Why?
 
 Because every AI agent orchestrator is trying to be clever, and we're tired of it.
