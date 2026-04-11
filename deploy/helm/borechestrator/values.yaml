@@ -1,0 +1,43 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/krlohnes/borechestrator
+  tag: latest
+  pullPolicy: IfNotPresent
+
+config:
+  # Path to the borechestrator.yml inside the container
+  path: /etc/borechestrator/borechestrator.yml
+  # Inline config content (optional — overrides configMap)
+  content: ""
+
+broker:
+  url: nats://nats:4222
+  stream: BORING
+
+store:
+  endpoint: http://rustfs:9000
+  bucket: borechestrator
+  accessKey: rustfsadmin
+  secretKey: rustfsadmin
+
+secrets:
+  # Name of a K8s Secret containing API keys
+  # Keys in the secret are available via from_secret in hat configs
+  secretRef: ""
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+serviceAccount:
+  create: true
+  name: ""
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

@@ -1,0 +1,6 @@
+apiVersion: v2
+name: borechestrator
+description: The world's most boring AI agent orchestrator
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

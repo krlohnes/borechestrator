@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "borechestrator.fullname" . }}
+  labels:
+    {{- include "borechestrator.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "borechestrator.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "borechestrator.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ include "borechestrator.serviceAccountName" . }}
+      {{- end }}
+      containers:
+        - name: controller
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - run
+            - -c
+            - {{ .Values.config.path }}
+          env:
+            - name: BORING_BROKER_URL
+              value: {{ .Values.broker.url | quote }}
+            - name: BORING_BROKER_STREAM
+              value: {{ .Values.broker.stream | quote }}
+            - name: BORING_STORE_ENDPOINT
+              value: {{ .Values.store.endpoint | quote }}
+            - name: BORING_STORE_BUCKET
+              value: {{ .Values.store.bucket | quote }}
+            - name: BORING_STORE_ACCESS_KEY
+              value: {{ .Values.store.accessKey | quote }}
+            - name: BORING_STORE_SECRET_KEY
+              value: {{ .Values.store.secretKey | quote }}
+            {{- if .Values.secrets.secretRef }}
+            envFrom:
+              - secretRef:
+                  name: {{ .Values.secrets.secretRef }}
+            {{- end }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/borechestrator
+              readOnly: true
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "borechestrator.fullname" . }}-config
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
