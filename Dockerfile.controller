@@ -1,0 +1,21 @@
+# Multi-stage build for borechestrator controller
+# Usage: docker build -f Dockerfile.controller -t borechestrator/controller:latest .
+
+FROM rust:1-slim AS builder
+
+RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+COPY Cargo.toml Cargo.lock* ./
+COPY crates/ crates/
+
+RUN cargo build --release -p boring-cli
+
+# ── Runtime image ────────────────────────────────────────────────
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /build/target/release/boring-cli /usr/local/bin/boring
+
+ENTRYPOINT ["boring"]
