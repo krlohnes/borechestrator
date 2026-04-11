@@ -1,5 +1,6 @@
 pub mod event_router;
 pub mod job_builder;
+pub mod output_parser;
 pub mod reconciler;
 
 #[cfg(test)]

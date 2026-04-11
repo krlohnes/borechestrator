@@ -158,6 +158,8 @@ pub struct HatConfig {
     pub publishes: Vec<String>,
     pub default_publishes: Option<String>,
     pub instructions: String,
+    /// Shell command to run in local mode. The prompt is available as $BORING_PROMPT.
+    pub command: Option<String>,
     pub image: Option<String>,
     pub env: Option<HashMap<String, EnvValue>>,
     pub resources: Option<Resources>,

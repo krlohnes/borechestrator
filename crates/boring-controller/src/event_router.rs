@@ -95,6 +95,7 @@ mod tests {
             publishes: publishes.iter().map(|s| s.to_string()).collect(),
             default_publishes: None,
             instructions: "test".to_string(),
+            command: None,
             image: None,
             env: None,
             resources: None,

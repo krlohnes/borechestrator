@@ -7,6 +7,7 @@ use boring_runtime::{Runtime, JobStatus};
 
 use crate::event_router::EventRouter;
 use crate::job_builder::JobBuilder;
+use crate::output_parser;
 
 /// Result of a reconciliation run.
 #[derive(Debug)]
@@ -68,6 +69,7 @@ impl Reconciler {
         let mut activations: HashMap<String, u32> = HashMap::new();
         let mut active_jobs: HashSet<String> = HashSet::new();
         let mut consecutive_failures: u32 = 0;
+        let mut global_sequence: u64 = 1; // 0 is the starting event
 
         // Publish the starting event
         let starting_event = Event::new(
@@ -140,13 +142,28 @@ impl Reconciler {
                 active_jobs.remove(&hat_id);
 
                 match status {
-                    JobStatus::Succeeded { .. } => {
+                    JobStatus::Succeeded { ref stdout } => {
                         consecutive_failures = 0;
-                        // In tests, extract events from the fake runtime and publish them.
-                        // In production, the agent publishes directly to NATS.
-                        if let Some(ref extractor) = self.event_extractor {
-                            let events = extractor(&handle.id);
-                            for evt in events {
+
+                        // Parse stdout for BORING_EMIT lines and completion promise
+                        let parsed_events = output_parser::parse_output(
+                            stdout,
+                            &hat_id,
+                            &run_id,
+                            &completion_promise,
+                            global_sequence,
+                        );
+                        global_sequence += parsed_events.len() as u64;
+
+                        // If stdout had events, publish them
+                        if !parsed_events.is_empty() {
+                            for evt in &parsed_events {
+                                self.broker.publish(&run_id, evt).await?;
+                            }
+                        } else if let Some(ref extractor) = self.event_extractor {
+                            // Fallback for test fakes that don't produce stdout
+                            let fake_events = extractor(&handle.id);
+                            for evt in fake_events {
                                 self.broker.publish(&run_id, &evt).await?;
                             }
                         }

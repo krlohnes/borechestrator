@@ -81,10 +81,16 @@ impl JobBuilder {
             env.insert("BORING_SCRATCHPAD_CONTENT".to_string(), content.to_string());
         }
 
+        // Use the hat's command if specified, otherwise default to echoing the prompt
+        let command = hat
+            .command
+            .clone()
+            .unwrap_or_else(|| "echo \"$BORING_PROMPT\"".to_string());
+
         JobSpec {
             hat_id: hat_id.to_string(),
             run_id: event.run_id.clone(),
-            command: prompt,
+            command,
             env,
             working_dir: None,
         }
