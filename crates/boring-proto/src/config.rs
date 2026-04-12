@@ -119,7 +119,7 @@ impl CliConfig {
         let prompt_arg = "if [ -f \"$BORING_PROMPT_FILE\" ]; then cat \"$BORING_PROMPT_FILE\"; else echo \"$BORING_PROMPT\"; fi";
 
         let cli_cmd = match self.backend.as_str() {
-            "claude" => format!("claude --print --dangerously-skip-permissions -p \"$({})\"", prompt_arg),
+            "claude" => format!("({}) | claude --dangerously-skip-permissions", prompt_arg),
             "kiro" => format!("kiro --print -p \"$({})\"", prompt_arg),
             "gemini" => format!("({}) | gemini", prompt_arg),
             "codex" => format!("({}) | codex", prompt_arg),
