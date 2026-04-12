@@ -141,7 +141,7 @@ mod tests {
             run_id: "run-test".to_string(),
             command: command.to_string(),
             env,
-            working_dir: None,
+            ..Default::default()
         }
     }
 

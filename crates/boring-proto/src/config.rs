@@ -266,6 +266,18 @@ pub struct HatConfig {
     /// Per-hat gates that must pass before the hat's command runs.
     #[serde(default)]
     pub gates: Vec<Gate>,
+    /// Secrets mounted as files inside the container.
+    #[serde(default)]
+    pub secret_mounts: Vec<SecretMount>,
+}
+
+/// A secret mounted as a file in the container.
+#[derive(Debug, Clone, Deserialize)]
+pub struct SecretMount {
+    /// Secret name (resolved via SecretProvider or K8s Secret name)
+    pub from_secret: String,
+    /// Path inside the container where the secret is mounted
+    pub mount_path: String,
 }
 
 /// Environment variable value: either a literal string or a reference to a K8s secret.

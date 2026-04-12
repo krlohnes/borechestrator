@@ -102,6 +102,7 @@ mod tests {
             max_activations: None,
             concurrency: None,
             gates: Vec::new(),
+            secret_mounts: Vec::new(),
         }
     }
 

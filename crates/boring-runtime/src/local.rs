@@ -90,8 +90,7 @@ mod tests {
             hat_id: "test-hat".to_string(),
             run_id: "run-test".to_string(),
             command: command.to_string(),
-            env: HashMap::new(),
-            working_dir: None,
+            ..Default::default()
         }
     }
 

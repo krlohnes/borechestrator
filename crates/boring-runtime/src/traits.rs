@@ -3,13 +3,16 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 /// Specification for a job to be executed.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct JobSpec {
     pub hat_id: String,
     pub run_id: String,
     pub command: String,
     pub env: HashMap<String, String>,
     pub working_dir: Option<PathBuf>,
+    /// Secrets to mount as files inside the container.
+    /// Vec of (secret_name_or_k8s_secret, mount_path)
+    pub secret_mounts: Vec<(String, String)>,
 }
 
 /// Handle to a running or completed job.

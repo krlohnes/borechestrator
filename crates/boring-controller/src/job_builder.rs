@@ -188,12 +188,19 @@ impl JobBuilder {
             .or_else(|| self.backend_command.clone())
             .unwrap_or_else(|| "echo \"$BORING_PROMPT\"".to_string());
 
+        let secret_mounts = hat
+            .secret_mounts
+            .iter()
+            .map(|sm| (sm.from_secret.clone(), sm.mount_path.clone()))
+            .collect();
+
         Ok(JobSpec {
             hat_id: hat_id.to_string(),
             run_id: event.run_id.clone(),
             command,
             env,
             working_dir: None,
+            secret_mounts,
         })
     }
 }

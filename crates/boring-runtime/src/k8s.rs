@@ -2,7 +2,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use async_trait::async_trait;
 use k8s_openapi::api::batch::v1::Job;
-use k8s_openapi::api::core::v1::{Container, EnvVar, PodSpec, PodTemplateSpec};
+use k8s_openapi::api::core::v1::{
+    Container, EnvVar, PodSpec, PodTemplateSpec, Volume, VolumeMount,
+    SecretVolumeSource,
+};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use kube::api::{Api, PostParams, LogParams};
 use kube::{Client, ResourceExt};
@@ -102,16 +105,54 @@ impl Runtime for K8sRuntime {
                         ),
                         ..Default::default()
                     }),
-                    spec: Some(PodSpec {
-                        restart_policy: Some("Never".to_string()),
-                        containers: vec![Container {
-                            name: "agent".to_string(),
-                            image: Some(image),
-                            command: Some(vec!["sh".to_string(), "-c".to_string(), spec.command]),
-                            env: Some(env_vars),
+                    spec: Some({
+                        // Build volume mounts and volumes from secret_mounts
+                        let mut volume_mounts = Vec::new();
+                        let mut volumes = Vec::new();
+
+                        for (i, (secret_name, mount_path)) in spec.secret_mounts.iter().enumerate() {
+                            let vol_name = format!("secret-{}", i);
+                            // Mount path is the directory; the file inside is the secret key
+                            let mount_dir = std::path::Path::new(mount_path)
+                                .parent()
+                                .map(|p| p.to_string_lossy().to_string())
+                                .unwrap_or_else(|| mount_path.clone());
+                            let filename = std::path::Path::new(mount_path)
+                                .file_name()
+                                .map(|f| f.to_string_lossy().to_string())
+                                .unwrap_or_else(|| "secret".to_string());
+
+                            volume_mounts.push(VolumeMount {
+                                name: vol_name.clone(),
+                                mount_path: mount_dir,
+                                sub_path: Some(filename.clone()),
+                                read_only: Some(true),
+                                ..Default::default()
+                            });
+
+                            volumes.push(Volume {
+                                name: vol_name,
+                                secret: Some(SecretVolumeSource {
+                                    secret_name: Some(secret_name.clone()),
+                                    ..Default::default()
+                                }),
+                                ..Default::default()
+                            });
+                        }
+
+                        PodSpec {
+                            restart_policy: Some("Never".to_string()),
+                            containers: vec![Container {
+                                name: "agent".to_string(),
+                                image: Some(image),
+                                command: Some(vec!["sh".to_string(), "-c".to_string(), spec.command]),
+                                env: Some(env_vars),
+                                volume_mounts: if volume_mounts.is_empty() { None } else { Some(volume_mounts) },
+                                ..Default::default()
+                            }],
+                            volumes: if volumes.is_empty() { None } else { Some(volumes) },
                             ..Default::default()
-                        }],
-                        ..Default::default()
+                        }
                     }),
                 },
                 ..Default::default()
@@ -226,7 +267,7 @@ mod tests {
             run_id: "k8s-test".to_string(),
             command: "echo 'hello from k8s'".to_string(),
             env: HashMap::new(),
-            working_dir: None,
+            ..Default::default()
         };
 
         let handle = runtime.create_job(spec).await.unwrap();
@@ -249,7 +290,7 @@ mod tests {
             run_id: "k8s-test".to_string(),
             command: "exit 1".to_string(),
             env: HashMap::new(),
-            working_dir: None,
+            ..Default::default()
         };
 
         let handle = runtime.create_job(spec).await.unwrap();
@@ -272,7 +313,7 @@ mod tests {
             run_id: "k8s-test".to_string(),
             command: "echo $BORING_TEST_VAR".to_string(),
             env,
-            working_dir: None,
+            ..Default::default()
         };
 
         let handle = runtime.create_job(spec).await.unwrap();
@@ -296,7 +337,7 @@ mod tests {
             command: "echo 'BORING_EMIT subtask.ready do the thing' && echo 'LOOP_COMPLETE'"
                 .to_string(),
             env: HashMap::new(),
-            working_dir: None,
+            ..Default::default()
         };
 
         let handle = runtime.create_job(spec).await.unwrap();
