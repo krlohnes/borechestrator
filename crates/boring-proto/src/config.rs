@@ -105,6 +105,8 @@ pub struct CliConfig {
     /// How to pass the prompt: "arg" (default) or "stdin"
     #[serde(default = "default_prompt_mode")]
     pub prompt_mode: String,
+    /// Model to use (e.g., "sonnet", "opus", "claude-sonnet-4-6")
+    pub model: Option<String>,
 }
 
 fn default_prompt_mode() -> String {
@@ -119,7 +121,12 @@ impl CliConfig {
         let prompt_arg = "if [ -f \"$BORING_PROMPT_FILE\" ]; then cat \"$BORING_PROMPT_FILE\"; else echo \"$BORING_PROMPT\"; fi";
 
         let cli_cmd = match self.backend.as_str() {
-            "claude" => format!("({}) | claude --dangerously-skip-permissions", prompt_arg),
+            "claude" => {
+                let model_flag = self.model.as_ref()
+                    .map(|m| format!(" --model {}", m))
+                    .unwrap_or_default();
+                format!("({}) | claude --dangerously-skip-permissions{}", prompt_arg, model_flag)
+            }
             "kiro" => format!("kiro --print -p \"$({})\"", prompt_arg),
             "gemini" => format!("({}) | gemini", prompt_arg),
             "codex" => format!("({}) | codex", prompt_arg),
