@@ -55,6 +55,34 @@ pub async fn clone_and_checkout(
         anyhow::bail!("git checkout -b failed with exit code {:?}", status.code());
     }
 
+    // Install pre-push hook that rebases before push.
+    // If rebase has conflicts, the error message tells the agent to fix them.
+    let hooks_dir = target_dir.join(".git/hooks");
+    let hook = r#"#!/bin/sh
+BRANCH=$(git branch --show-current)
+echo "pre-push: rebasing onto origin/$BRANCH"
+git fetch origin "$BRANCH" 2>/dev/null
+if ! git rebase "origin/$BRANCH" 2>/dev/null; then
+    echo ""
+    echo "ERROR: Rebase conflicts detected."
+    echo "Fix the conflicts in the files listed above, then run:"
+    echo "  git add <fixed files>"
+    echo "  git rebase --continue"
+    echo "  git push origin $BRANCH"
+    exit 1
+fi
+"#;
+    tokio::fs::write(hooks_dir.join("pre-push"), &hook).await.ok();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(
+            hooks_dir.join("pre-push"),
+            std::fs::Permissions::from_mode(0o755),
+        ).ok();
+    }
+    info!("installed pre-push hook");
+
     Ok(())
 }
 
@@ -73,14 +101,6 @@ pub async fn push(target_dir: &Path, branch: &str) -> anyhow::Result<bool> {
         info!("no new commits to push");
         return Ok(false);
     }
-
-    // Pull before push to integrate other hats' changes
-    info!(branch = %branch, "pulling before push");
-    let _ = Command::new("git")
-        .args(["pull", "--rebase", "origin", branch])
-        .current_dir(target_dir)
-        .status()
-        .await;
 
     info!(branch = %branch, "pushing work branch");
 
