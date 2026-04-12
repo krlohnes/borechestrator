@@ -102,16 +102,28 @@ pub async fn run(config_path: &Path, inline_prompt: Option<&str>, prompt_file: O
         }
     };
 
-    // Secret resolution chain
+    // Secret resolution chain: env → files → K8s (when in K8s mode)
     let secrets_dir = std::env::var("HOME")
         .map(std::path::PathBuf::from)
         .unwrap_or_default()
         .join(".boring")
         .join("secrets");
-    let secrets = ChainSecretProvider::new(vec![
+    let mut providers: Vec<Box<dyn boring_secrets::SecretProvider>> = vec![
         Box::new(EnvSecretProvider::new()),
         Box::new(FileSecretProvider::new(&secrets_dir)),
-    ]);
+    ];
+
+    // Add K8s secrets when running in K8s mode
+    if mode == boring_proto::config::RuntimeMode::K8s {
+        let namespace = config.runtime.as_ref()
+            .and_then(|r| r.namespace.as_deref())
+            .unwrap_or("default");
+        if let Ok(k8s) = boring_secrets::k8s::K8sSecretProvider::new(namespace).await {
+            providers.push(Box::new(k8s));
+        }
+    }
+
+    let secrets = ChainSecretProvider::new(providers);
 
     let mut reconciler = Reconciler::new(
         config,

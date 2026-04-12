@@ -14,7 +14,7 @@ boring-broker = { path = "../boring-broker" }
 boring-store = { path = "../boring-store" }
 boring-controller = { path = "../boring-controller" }
 boring-runtime = { path = "../boring-runtime", features = ["k8s"] }
-boring-secrets = { path = "../boring-secrets" }
+boring-secrets = { path = "../boring-secrets", features = ["k8s"] }
 clap = { workspace = true }
 tokio = { workspace = true }
 anyhow = { workspace = true }

@@ -21,10 +21,15 @@ k8s-openapi = { workspace = true, optional = true }
 aws-sdk-secretsmanager = { version = "1.86", optional = true }
 aws-config = { version = "1.6", optional = true }
 
+# Azure
+azure_security_keyvault = { version = "0.21", optional = true }
+azure_identity = { version = "0.21", optional = true }
+
 [features]
 default = []
 k8s = ["dep:kube", "dep:k8s-openapi"]
 aws = ["dep:aws-sdk-secretsmanager", "dep:aws-config"]
+azure = ["dep:azure_security_keyvault", "dep:azure_identity"]
 
 [dev-dependencies]
 tokio = { workspace = true }

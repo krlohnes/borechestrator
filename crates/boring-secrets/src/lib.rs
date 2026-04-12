@@ -5,6 +5,8 @@ pub mod file;
 pub mod k8s;
 #[cfg(feature = "aws")]
 pub mod aws;
+#[cfg(feature = "azure")]
+pub mod azure;
 pub mod chain;
 
 pub use traits::{SecretProvider, NoopSecretProvider};
