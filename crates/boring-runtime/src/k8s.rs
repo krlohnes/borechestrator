@@ -141,8 +141,18 @@ impl Runtime for K8sRuntime {
                                 name: "agent".to_string(),
                                 image: Some(image),
                                 image_pull_policy: Some("IfNotPresent".to_string()),
-                                command: Some(vec!["sh".to_string(), "-c".to_string(), spec.command]),
-                                env: Some(env_vars),
+                                // Don't override command — let the image's ENTRYPOINT
+                                // (boring-agent) handle it via BORING_COMMAND env var.
+                                // boring-agent reads BORING_COMMAND and runs it.
+                                env: Some({
+                                    let mut evs = env_vars;
+                                    evs.push(EnvVar {
+                                        name: "BORING_COMMAND".to_string(),
+                                        value: Some(spec.command.clone()),
+                                        ..Default::default()
+                                    });
+                                    evs
+                                }),
                                 volume_mounts: if volume_mounts.is_empty() { None } else { Some(volume_mounts) },
                                 ..Default::default()
                             }],
