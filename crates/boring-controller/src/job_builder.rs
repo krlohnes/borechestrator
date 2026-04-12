@@ -39,8 +39,12 @@ impl JobBuilder {
 
         let backend_command = config.cli.as_ref().map(|c| c.backend_command());
 
+        // Use pod_url for containers if available, otherwise fall back to url
         let (broker_url, broker_stream) = config.broker.as_ref()
-            .map(|b| (Some(b.url.clone()), b.stream.clone()))
+            .map(|b| (
+                Some(b.pod_url.as_ref().unwrap_or(&b.url).clone()),
+                b.stream.clone(),
+            ))
             .unwrap_or((None, None));
 
         let (store_endpoint, store_bucket, store_prefix, store_access_key, store_secret_key) =

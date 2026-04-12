@@ -166,6 +166,10 @@ pub struct BrokerConfig {
     pub url: String,
     pub stream: Option<String>,
     pub credentials_file: Option<String>,
+    /// URL that pods/containers use to reach the broker.
+    /// Defaults to url if not set. Useful when the controller
+    /// runs on localhost but pods need host.docker.internal.
+    pub pod_url: Option<String>,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]

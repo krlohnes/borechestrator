@@ -25,6 +25,12 @@ runtime:
 cli:
   backend: claude
 
+broker:
+  url: nats://127.0.0.1:4222
+  stream: BORING
+  # URL pods use to reach the broker (host network from Docker Desktop K8s)
+  pod_url: nats://host.docker.internal:4222
+
 store:
   endpoint: http://host.docker.internal:9000
   bucket: borechestrator
