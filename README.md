@@ -279,6 +279,26 @@ Borechestrator is not a framework for building AI agents. It doesn't wrap the An
 
 Borechestrator is the boring glue between agents that already exist. You bring the agent. I bring the plumbing.
 
+## Monitoring
+
+The same way you monitor everything else.
+
+```bash
+kubectl get pods -l app.kubernetes.io/managed-by=borechestrator
+kubectl logs <pod-name>
+```
+
+If you're feeling adventurous:
+
+```bash
+boring status
+boring logs <run-id>
+```
+
+OTel tracing is available behind `--features otel` if you want spans in Jaeger. Structured JSON logs go to stdout. Prometheus metrics exist. It's all the same stuff you already have dashboards for.
+
+There is no TUI. There is no web UI. There is no dashboard. You have `kubectl`. It's fine.
+
 ## Name
 
 It's called borechestrator because it's boring. That's the point. If your orchestrator is exciting, something has gone wrong.
