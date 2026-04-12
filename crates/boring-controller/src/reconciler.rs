@@ -239,8 +239,21 @@ impl Reconciler {
                                 self.broker.publish(&run_id, evt).await?;
                             }
                         } else if let Some(ref extractor) = self.event_extractor {
+                            // Test fakes
                             let fake_events = extractor(&handle.id);
                             for evt in fake_events {
+                                self.broker.publish(&run_id, &evt).await?;
+                            }
+                        } else {
+                            // Auto-emit: if the agent produced no events, emit the
+                            // hat's default publish to keep the pipeline moving.
+                            let hat = self.config.hats.get(&hat_id);
+                            let default_topic = hat
+                                .and_then(|h| h.default_publishes.as_ref().or(h.publishes.first()));
+                            if let Some(topic) = default_topic {
+                                tracing::info!(hat = %hat_id, topic = %topic, "auto-emitting default event");
+                                let evt = Event::new(topic, "auto-emitted", Some(&hat_id), &run_id, global_sequence);
+                                global_sequence += 1;
                                 self.broker.publish(&run_id, &evt).await?;
                             }
                         }
