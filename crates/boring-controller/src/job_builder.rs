@@ -214,6 +214,18 @@ impl JobBuilder {
         let prompt = Self::assemble_prompt(hat, event, &self.guardrails, scratchpad, self.prompt_file_content.as_deref(), &self.completion_promise);
 
         let mut env = HashMap::new();
+
+        // Ensure emit CLI is on PATH. Look for it next to the boring-cli binary,
+        // in /usr/local/bin (containers), or ~/.local/bin (local dev).
+        let emit_dirs = [
+            std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.to_string_lossy().to_string())),
+            Some("/usr/local/bin".to_string()),
+            std::env::var("HOME").ok().map(|h| format!("{}/.local/bin", h)),
+        ];
+        let extra_path = emit_dirs.iter().flatten().cloned().collect::<Vec<_>>().join(":");
+        let current_path = std::env::var("PATH").unwrap_or_default();
+        env.insert("PATH".to_string(), format!("{}:{}", extra_path, current_path));
+
         env.insert("BORING_RUN_ID".to_string(), event.run_id.clone());
         env.insert("BORING_HAT_ID".to_string(), hat_id.to_string());
         env.insert("BORING_EVENT_TOPIC".to_string(), event.topic.clone());
