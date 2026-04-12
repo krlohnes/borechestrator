@@ -18,6 +18,16 @@ pub async fn clone_and_checkout(
         repo_url.to_string()
     };
 
+    // Set git user config for commits inside containers
+    let _ = Command::new("git")
+        .args(["config", "--global", "user.email", "boring@borechestrator.dev"])
+        .status()
+        .await;
+    let _ = Command::new("git")
+        .args(["config", "--global", "user.name", "borechestrator"])
+        .status()
+        .await;
+
     info!(repo = %repo_url, branch = %base_branch, "cloning repository");
 
     let status = Command::new("git")
