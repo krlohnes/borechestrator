@@ -37,16 +37,24 @@ pub fn parse_output(
     for line in stdout.lines() {
         let trimmed = line.trim();
 
-        if let Some(rest) = trimmed.strip_prefix("BORING_EMIT ") {
+        // Use contains() instead of strip_prefix() — LLMs wrap markers in
+        // markdown bold, backticks, list items, etc. We don't care where
+        // the marker appears, just that it's there.
+        if let Some(pos) = trimmed.find("BORING_EMIT ") {
+            let rest = &trimmed[pos + "BORING_EMIT ".len()..];
+            let rest = rest.trim_end_matches(|c: char| c == '*' || c == '`' || c == '_').trim();
             let mut parts = rest.splitn(2, ' ');
             if let Some(topic) = parts.next() {
-                let payload = parts.next().unwrap_or("");
+                let topic = topic.trim_matches(|c: char| c == '*' || c == '`' || c == '_');
+                let payload = parts.next().unwrap_or("").trim_end_matches(|c: char| c == '*' || c == '`');
                 if !topic.is_empty() {
                     result.events.push(Event::new(topic, payload, Some(hat_id), run_id, seq));
                     seq += 1;
                 }
             }
-        } else if let Some(rest) = trimmed.strip_prefix("BORING_MEMORY ") {
+        } else if let Some(pos) = trimmed.find("BORING_MEMORY ") {
+            let rest = &trimmed[pos + "BORING_MEMORY ".len()..];
+            let rest = rest.trim_end_matches(|c: char| c == '*' || c == '`').trim();
             let mut parts = rest.splitn(2, ' ');
             if let Some(memory_type) = parts.next() {
                 let content = parts.next().unwrap_or("");
@@ -59,7 +67,8 @@ pub fn parse_output(
                     });
                 }
             }
-        } else if let Some(rest) = trimmed.strip_prefix("BORING_TASK ") {
+        } else if let Some(pos) = trimmed.find("BORING_TASK ") {
+            let rest = &trimmed[pos + "BORING_TASK ".len()..];
             let mut parts = rest.splitn(2, ' ');
             if let Some(action) = parts.next() {
                 let arg = parts.next().unwrap_or("");
@@ -85,11 +94,14 @@ pub fn parse_output(
                     _ => {}
                 }
             }
-        } else if let Some(question) = trimmed.strip_prefix("BORING_HUMAN ") {
-            result.human_actions.push(HumanAction::Ask(question.to_string()));
-        } else if let Some(message) = trimmed.strip_prefix("BORING_NOTIFY ") {
-            result.human_actions.push(HumanAction::Notify(message.to_string()));
-        } else if let Some(content) = trimmed.strip_prefix("BORING_SCRATCHPAD ") {
+        } else if let Some(pos) = trimmed.find("BORING_HUMAN ") {
+            let question = &trimmed[pos + "BORING_HUMAN ".len()..];
+            result.human_actions.push(HumanAction::Ask(question.trim_end_matches(|c: char| c == '*' || c == '`').to_string()));
+        } else if let Some(pos) = trimmed.find("BORING_NOTIFY ") {
+            let message = &trimmed[pos + "BORING_NOTIFY ".len()..];
+            result.human_actions.push(HumanAction::Notify(message.trim_end_matches(|c: char| c == '*' || c == '`').to_string()));
+        } else if let Some(pos) = trimmed.find("BORING_SCRATCHPAD ") {
+            let content = &trimmed[pos + "BORING_SCRATCHPAD ".len()..];
             result.scratchpad_lines.push(content.to_string());
         } else if !completion_found && trimmed.contains(completion_promise) {
             completion_found = true;

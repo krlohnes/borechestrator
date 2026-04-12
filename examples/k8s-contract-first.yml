@@ -1,0 +1,105 @@
+# Contract-First Fullstack on K8s
+#
+# Prerequisites:
+#   docker build -f Dockerfile.claude-agent -t borechestrator/claude-agent:latest .
+#   kubectl create secret generic claude-credentials \
+#     --from-file=.credentials.json=$HOME/.claude/.credentials.json
+#   ./scripts/dev-up.sh  # NATS on localhost
+#
+# Usage:
+#   cargo run -p boring-cli -- run -c examples/k8s-contract-first.yml --mode k8s \
+#     -p "Build a REST API for a bookmark manager with CRUD and a vanilla JS frontend"
+
+event_loop:
+  starting_event: spec.start
+  completion_promise: LOOP_COMPLETE
+  max_iterations: 20
+  max_runtime_seconds: 1200
+
+runtime:
+  mode: k8s
+  namespace: default
+  default_image: borechestrator/claude-agent:latest
+
+cli:
+  backend: claude
+
+core:
+  guardrails:
+    - "The API contract in .boring/scratchpad/shared.md is the source of truth."
+    - "Frontend and backend MUST NOT depend on each other — only the contract."
+    - "Read .boring/prompt.md for requirements."
+
+hats:
+  spec_writer:
+    name: API Contract Writer
+    description: "Drafts the API contract from requirements"
+    triggers: ["spec.start", "spec.rejected"]
+    publishes: ["spec.ready"]
+    secret_mounts:
+      - from_secret: claude-credentials
+        mount_path: /home/agent/.claude/.credentials.json
+    instructions: |
+      Read the task requirements from the event payload.
+      Draft an API contract. For each endpoint: method, path, request/response schemas, errors.
+      Output each line prefixed with BORING_SCRATCHPAD so it's saved.
+      When done: BORING_EMIT spec.ready contract drafted
+      If spec.rejected, revise based on feedback.
+
+  spec_reviewer:
+    name: Contract Reviewer
+    description: "Reviews the API contract for completeness"
+    triggers: ["spec.ready"]
+    publishes: ["spec.approved", "spec.rejected"]
+    secret_mounts:
+      - from_secret: claude-credentials
+        mount_path: /home/agent/.claude/.credentials.json
+    instructions: |
+      Review the API contract. Are all operations covered, schemas complete, errors handled?
+      If issues: BORING_EMIT spec.rejected <feedback>
+      If solid: BORING_EMIT spec.approved
+
+  backend_builder:
+    name: Backend Builder
+    description: "Implements the backend API from the contract"
+    triggers: ["spec.approved", "backend.fix"]
+    publishes: ["backend.done"]
+    secret_mounts:
+      - from_secret: claude-credentials
+        mount_path: /home/agent/.claude/.credentials.json
+    instructions: |
+      Implement the backend API matching the contract exactly.
+      In-memory storage is fine. Include error handling.
+      Do NOT depend on frontend code — only the contract.
+      If backend.fix event, fix what the verifier found wrong.
+      When done: BORING_EMIT backend.done
+
+  frontend_builder:
+    name: Frontend Builder
+    description: "Implements the frontend from the contract"
+    triggers: ["spec.approved", "frontend.fix"]
+    publishes: ["frontend.done"]
+    secret_mounts:
+      - from_secret: claude-credentials
+        mount_path: /home/agent/.claude/.credentials.json
+    instructions: |
+      Implement the frontend matching the API contract.
+      Build API client functions for every endpoint.
+      Do NOT depend on backend code — only the contract.
+      If frontend.fix event, fix what the verifier found wrong.
+      When done: BORING_EMIT frontend.done
+
+  verifier:
+    name: Contract Verifier
+    description: "Tests both implementations against the contract"
+    triggers: ["backend.done", "frontend.done"]
+    publishes: ["backend.fix", "frontend.fix"]
+    secret_mounts:
+      - from_secret: claude-credentials
+        mount_path: /home/agent/.claude/.credentials.json
+    instructions: |
+      Verify implementations conform to the API contract.
+      Check backend endpoints, frontend API client, schema match.
+      If backend broken: BORING_EMIT backend.fix <what's wrong>
+      If frontend broken: BORING_EMIT frontend.fix <what's wrong>
+      If both conform: LOOP_COMPLETE
