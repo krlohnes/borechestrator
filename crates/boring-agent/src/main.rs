@@ -213,17 +213,6 @@ async fn main() -> anyhow::Result<()> {
 
     // ── Phase 7: Push git changes (with conflict retry) ──────────
     if let Some(ref branch) = work_branch {
-        // Ensure .boring/ is gitignored — it's synced via S3, not git
-        let gitignore_path = work_dir.join(".gitignore");
-        let gitignore = if gitignore_path.exists() {
-            tokio::fs::read_to_string(&gitignore_path).await.unwrap_or_default()
-        } else {
-            String::new()
-        };
-        if !gitignore.contains(".boring/") {
-            tokio::fs::write(&gitignore_path, format!("{}\n.boring/\n", gitignore.trim())).await.ok();
-        }
-
         let _ = Command::new("git")
             .args(["add", "-A"])
             .current_dir(&work_dir)

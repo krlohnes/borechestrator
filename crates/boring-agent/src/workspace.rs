@@ -14,6 +14,13 @@ pub async fn materialize(
     event_topic: &str,
     event_payload: &str,
 ) -> anyhow::Result<()> {
+    // Ensure .boring/ is gitignored — state syncs via S3, not git
+    let gitignore_path = work_dir.join(".gitignore");
+    let gitignore = tokio::fs::read_to_string(&gitignore_path).await.unwrap_or_default();
+    if !gitignore.contains(".boring/") {
+        tokio::fs::write(&gitignore_path, format!("{}\n.boring/\n", gitignore.trim())).await?;
+    }
+
     let boring_dir = work_dir.join(".boring");
     tokio::fs::create_dir_all(&boring_dir)
         .await
