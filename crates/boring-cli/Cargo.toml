@@ -13,7 +13,7 @@ boring-proto = { path = "../boring-proto" }
 boring-broker = { path = "../boring-broker" }
 boring-store = { path = "../boring-store" }
 boring-controller = { path = "../boring-controller" }
-boring-runtime = { path = "../boring-runtime" }
+boring-runtime = { path = "../boring-runtime", features = ["k8s"] }
 boring-secrets = { path = "../boring-secrets" }
 clap = { workspace = true }
 tokio = { workspace = true }

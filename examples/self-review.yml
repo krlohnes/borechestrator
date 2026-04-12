@@ -1,0 +1,55 @@
+# Self-review: borechestrator reviews its own code.
+#
+# Usage:
+#   cargo run -p boring-cli -- run -c examples/self-review.yml
+#
+# This runs against the current directory. The critic-actor loop
+# continues until the reviewer is satisfied.
+
+event_loop:
+  starting_event: review.start
+  completion_promise: REVIEW_COMPLETE
+  max_iterations: 6
+  max_runtime_seconds: 300
+
+cli:
+  backend: claude
+
+hats:
+  reader:
+    name: Code Reader
+    description: "Reads the codebase and identifies areas to review"
+    triggers: ["review.start"]
+    publishes: ["findings.ready"]
+    command: |
+      claude --print "Read the borechestrator codebase (crates/ directory). Focus on:
+      - Code quality and Rust idioms
+      - Error handling patterns
+      - Any obvious bugs or missing error cases
+      - Test coverage gaps
+
+      List your top 3-5 findings. For each, include the file path and line number.
+      Be specific and actionable.
+
+      When done, print: BORING_EMIT findings.ready"
+    instructions: "Read the codebase and identify review findings."
+
+  critic:
+    name: Critic
+    description: "Reviews findings and decides if the code is acceptable"
+    triggers: ["findings.ready"]
+    publishes: []
+    command: |
+      claude --print "You are reviewing the borechestrator codebase.
+
+      Read the findings from the previous reviewer in .boring/scratchpad/reader.md
+      (if it exists) or just review the codebase directly.
+
+      For each finding, assess:
+      - Is this a real issue or a false positive?
+      - How severe is it? (critical / moderate / nit)
+      - What's the fix?
+
+      If the code is acceptable overall, print: REVIEW_COMPLETE
+      If there are critical issues, describe them."
+    instructions: "Assess findings and decide if code is acceptable."

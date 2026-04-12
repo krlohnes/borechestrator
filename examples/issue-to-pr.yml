@@ -1,0 +1,78 @@
+# Issue to PR: takes a task description and implements it.
+#
+# Usage:
+#   cargo run -p boring-cli -- run -c examples/issue-to-pr.yml \
+#     -p "Add a --verbose flag to the boring run command that prints each event as it's routed"
+#
+# Or with a prompt file:
+#   echo "Add a --verbose flag..." > PROMPT.md
+#   cargo run -p boring-cli -- run -c examples/issue-to-pr.yml -P PROMPT.md
+
+event_loop:
+  starting_event: build.start
+  completion_promise: LOOP_COMPLETE
+  max_iterations: 15
+  max_runtime_seconds: 600
+
+cli:
+  backend: claude
+
+core:
+  guardrails:
+    - "Read .boring/prompt.md for the task description."
+    - "Run cargo test after changes to verify nothing broke."
+    - "Commit after each meaningful change."
+
+hats:
+  planner:
+    name: Planner
+    description: "Reads the task and breaks it into steps"
+    triggers: ["build.start"]
+    publishes: ["task.ready"]
+    command: |
+      claude --print "Read .boring/prompt.md for the task description.
+      Read the codebase to understand the current structure.
+
+      Break the task into 1-3 concrete implementation steps.
+      For each step, describe what file(s) to change and what to do.
+
+      Then emit each step:
+      BORING_EMIT task.ready <step description>
+
+      If the task is simple enough for one step, just emit one."
+    instructions: "Break the task into implementation steps."
+
+  builder:
+    name: Builder
+    description: "Implements one step at a time"
+    triggers: ["task.ready", "review.rejected"]
+    publishes: ["review.ready"]
+    command: |
+      claude --print "$BORING_PROMPT
+
+      Implement this step. Write the code. Run cargo test to verify.
+      If tests pass, commit your changes.
+
+      If this was a review.rejected event, address the feedback.
+
+      When done: BORING_EMIT review.ready"
+    instructions: "Implement the step described in the event payload."
+
+  reviewer:
+    name: Reviewer
+    description: "Reviews the implementation"
+    triggers: ["review.ready"]
+    publishes: ["review.rejected", "task.done"]
+    command: |
+      claude --print "Review the recent changes (git diff HEAD~1).
+
+      Check:
+      - Does it match the original task in .boring/prompt.md?
+      - Are there bugs or edge cases?
+      - Do tests pass? Run cargo test.
+
+      If issues: BORING_EMIT review.rejected <specific feedback>
+      If good: BORING_EMIT task.done
+
+      After all tasks are done: LOOP_COMPLETE"
+    instructions: "Review implementation quality."

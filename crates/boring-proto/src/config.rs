@@ -127,7 +127,7 @@ impl CliConfig {
     }
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum RuntimeMode {
     Local,

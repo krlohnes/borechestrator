@@ -76,9 +76,9 @@ fn main() -> ExitCode {
 
     match cli.command {
         Commands::Validate { config } => commands::validate::run(&config),
-        Commands::Run { config, mode: _, prompt, prompt_file, r#continue: resume } => {
+        Commands::Run { config, mode, prompt, prompt_file, r#continue: resume } => {
             let rt = tokio::runtime::Runtime::new().unwrap();
-            rt.block_on(commands::run::run(&config, prompt.as_deref(), prompt_file.as_deref(), resume))
+            rt.block_on(commands::run::run(&config, prompt.as_deref(), prompt_file.as_deref(), resume, mode.as_deref()))
         }
         Commands::Init { preset, list } => {
             commands::init::run(preset.as_deref(), list)

@@ -1,0 +1,36 @@
+# K8s echo test: verifies the full K8s pipeline with simple echo commands.
+#
+# Usage:
+#   # Make sure NATS is running (locally or in k8s)
+#   ./scripts/dev-up.sh  # or k8s-up.sh
+#
+#   # Run with K8s runtime
+#   cargo run -p boring-cli -- run -c examples/k8s-echo-test.yml --mode k8s
+
+event_loop:
+  starting_event: work.start
+  completion_promise: LOOP_COMPLETE
+  max_iterations: 10
+  max_runtime_seconds: 60
+
+runtime:
+  mode: k8s
+  namespace: default
+  default_image: alpine:latest
+
+hats:
+  planner:
+    name: Planner
+    description: "Emits a subtask"
+    triggers: ["work.start"]
+    publishes: ["subtask.ready"]
+    command: "echo 'Planning...' && echo 'BORING_EMIT subtask.ready build the thing'"
+    instructions: "Plan the work."
+
+  builder:
+    name: Builder
+    description: "Does the work and completes"
+    triggers: ["subtask.ready"]
+    publishes: ["work.done"]
+    command: "echo 'Building...' && echo 'BORING_EMIT work.done finished' && echo 'LOOP_COMPLETE'"
+    instructions: "Build it."

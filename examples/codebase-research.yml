@@ -1,0 +1,54 @@
+# Codebase research: answers a question without making changes.
+#
+# Usage:
+#   cargo run -p boring-cli -- run -c examples/codebase-research.yml \
+#     -p "How does the event routing work? What happens when multiple hats match the same event?"
+
+event_loop:
+  starting_event: research.start
+  completion_promise: RESEARCH_COMPLETE
+  max_iterations: 8
+  max_runtime_seconds: 300
+
+cli:
+  backend: claude
+
+hats:
+  researcher:
+    name: Researcher
+    description: "Searches the codebase for relevant information"
+    triggers: ["research.start", "research.followup"]
+    publishes: ["research.finding"]
+    command: |
+      claude --print "Research question (from .boring/prompt.md):
+      $(cat .boring/prompt.md 2>/dev/null || echo $BORING_EVENT_PAYLOAD)
+
+      Search the codebase thoroughly:
+      - grep for relevant functions, types, and patterns
+      - Read the key files
+      - Trace the code path
+
+      Document your findings with file:line references.
+      Do NOT make any changes.
+
+      BORING_EMIT research.finding
+      BORING_SCRATCHPAD $(date): Researched - found relevant code in..."
+    instructions: "Search and analyze without making changes."
+
+  synthesizer:
+    name: Synthesizer
+    description: "Combines findings into a coherent answer"
+    triggers: ["research.finding"]
+    publishes: ["research.followup"]
+    command: |
+      claude --print "Read .boring/scratchpad/ for research findings so far.
+
+      Synthesize the findings into a clear, complete answer to the
+      original question in .boring/prompt.md.
+
+      If there are gaps in the research, ask for more:
+      BORING_EMIT research.followup <what to investigate>
+
+      If the answer is complete and well-supported:
+      RESEARCH_COMPLETE"
+    instructions: "Synthesize research findings into an answer."

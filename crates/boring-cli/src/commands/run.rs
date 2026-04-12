@@ -1,13 +1,13 @@
 use std::path::Path;
 use std::process::ExitCode;
-use boring_proto::config::BoringConfig;
+use boring_proto::config::{BoringConfig, RuntimeMode};
 use boring_broker::NatsBroker;
 use boring_store::LocalStore;
-use boring_runtime::LocalRuntime;
+use boring_runtime::{LocalRuntime, DockerRuntime, Runtime};
 use boring_secrets::{EnvSecretProvider, ChainSecretProvider, FileSecretProvider};
 use boring_controller::reconciler::{Reconciler, RunResult};
 
-pub async fn run(config_path: &Path, inline_prompt: Option<&str>, prompt_file: Option<&Path>, resume: bool) -> ExitCode {
+pub async fn run(config_path: &Path, inline_prompt: Option<&str>, prompt_file: Option<&Path>, resume: bool, mode_override: Option<&str>) -> ExitCode {
     let mut config = match BoringConfig::from_file(config_path) {
         Ok(c) => c,
         Err(e) => {
@@ -21,7 +21,6 @@ pub async fn run(config_path: &Path, inline_prompt: Option<&str>, prompt_file: O
         config.event_loop.prompt_file = Some(pf.to_string_lossy().to_string());
     }
     if let Some(inline) = inline_prompt {
-        // Write inline prompt to a temp file and set prompt_file
         let tmp = std::env::temp_dir().join("boring-inline-prompt.md");
         if let Err(e) = std::fs::write(&tmp, inline) {
             eprintln!("Failed to write inline prompt: {}", e);
@@ -37,6 +36,17 @@ pub async fn run(config_path: &Path, inline_prompt: Option<&str>, prompt_file: O
         }
         return ExitCode::from(2);
     }
+
+    // Determine runtime mode: CLI flag > config > default (local)
+    let mode = mode_override
+        .map(|m| match m {
+            "local" => RuntimeMode::Local,
+            "docker" => RuntimeMode::Docker,
+            "k8s" => RuntimeMode::K8s,
+            _ => RuntimeMode::Local,
+        })
+        .or_else(|| config.runtime.as_ref().map(|r| r.mode.clone()))
+        .unwrap_or(RuntimeMode::Local);
 
     // Determine broker URL
     let broker_url = config
@@ -59,13 +69,40 @@ pub async fn run(config_path: &Path, inline_prompt: Option<&str>, prompt_file: O
         }
     };
 
-    // Local store in .boring/ directory
+    // Store: always local filesystem for now
     let store_dir = std::env::current_dir().unwrap().join(".boring");
     let store = LocalStore::new(&store_dir);
 
-    let runtime = LocalRuntime::new();
+    // Select runtime
+    let runtime: Box<dyn Runtime> = match mode {
+        RuntimeMode::Local => {
+            println!("Runtime: local");
+            Box::new(LocalRuntime::new())
+        }
+        RuntimeMode::Docker => {
+            println!("Runtime: docker");
+            let docker = DockerRuntime::new();
+            Box::new(docker)
+        }
+        RuntimeMode::K8s => {
+            println!("Runtime: k8s");
+            let namespace = config.runtime.as_ref()
+                .and_then(|r| r.namespace.as_deref())
+                .unwrap_or("default");
+            let default_image = config.runtime.as_ref()
+                .and_then(|r| r.default_image.as_deref())
+                .unwrap_or("alpine:latest");
+            match boring_runtime::k8s::K8sRuntime::new(namespace, default_image).await {
+                Ok(rt) => Box::new(rt),
+                Err(e) => {
+                    eprintln!("Failed to connect to K8s: {}", e);
+                    return ExitCode::from(1);
+                }
+            }
+        }
+    };
 
-    // Secret resolution chain: env vars first, then files in ~/.boring/secrets/
+    // Secret resolution chain
     let secrets_dir = std::env::var("HOME")
         .map(std::path::PathBuf::from)
         .unwrap_or_default()
@@ -80,7 +117,7 @@ pub async fn run(config_path: &Path, inline_prompt: Option<&str>, prompt_file: O
         config,
         Box::new(broker),
         Box::new(store),
-        Box::new(runtime),
+        runtime,
         Box::new(secrets),
     );
 
