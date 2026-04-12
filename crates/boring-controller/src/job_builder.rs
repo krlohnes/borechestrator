@@ -98,8 +98,41 @@ impl JobBuilder {
         guardrails: &[String],
         scratchpad: Option<&str>,
         prompt_file: Option<&str>,
+        completion_promise: &str,
     ) -> String {
         let mut parts = Vec::new();
+
+        // System rules — these are borechestrator's concerns, not the user's.
+        // Injected automatically into every hat prompt.
+        parts.push(format!(
+            "# System\n\n\
+            You are running inside borechestrator, an AI agent orchestrator.\n\
+            \n\
+            ## Workspace\n\
+            - Your task description is in .boring/prompt.md\n\
+            - The current event context is in .boring/event.json\n\
+            - Shared state (API contracts, notes) is in .boring/scratchpad/\n\
+            - Memories from previous iterations are in .boring/memories.md\n\
+            - Task list is in .boring/tasks.md\n\
+            \n\
+            ## Events — YOU MUST emit one of these before finishing:\n\
+            Allowed events for your hat: {publishes}\n\
+            To emit: print a line containing BORING_EMIT <topic> <optional payload>\n\
+            To signal completion: print a line containing {completion}\n\
+            Do NOT wrap these in markdown. Print them as plain text on their own line.\n\
+            \n\
+            ## Git\n\
+            - Before committing, run: git pull --rebase origin $(git branch --show-current)\n\
+            - Commit and push your changes BEFORE printing any BORING_EMIT line.\n\
+            \n\
+            ## Other markers you can use:\n\
+            - BORING_SCRATCHPAD <text> — append to shared scratchpad\n\
+            - BORING_MEMORY <type> <content> — save a learning (types: pattern, decision, fix, context)\n\
+            - BORING_TASK add <title> — create a task\n\
+            - BORING_TASK done <id> — mark a task done",
+            publishes = hat.publishes.join(", "),
+            completion = completion_promise,
+        ));
 
         // Prompt file (task description, loaded once at run start)
         if let Some(content) = prompt_file {
@@ -109,14 +142,14 @@ impl JobBuilder {
         // Instructions
         parts.push(format!("# Instructions\n\n{}", hat.instructions.trim()));
 
-        // Guardrails
+        // User guardrails (project-specific rules from config)
         if !guardrails.is_empty() {
             let rules: String = guardrails
                 .iter()
                 .map(|g| format!("- {}", g))
                 .collect::<Vec<_>>()
                 .join("\n");
-            parts.push(format!("# Guardrails\n\n{}", rules));
+            parts.push(format!("# Project Rules\n\n{}", rules));
         }
 
         // Event context
@@ -173,7 +206,7 @@ impl JobBuilder {
         scratchpad: Option<&str>,
         secrets: &dyn SecretProvider,
     ) -> anyhow::Result<JobSpec> {
-        let prompt = Self::assemble_prompt(hat, event, &self.guardrails, scratchpad, self.prompt_file_content.as_deref());
+        let prompt = Self::assemble_prompt(hat, event, &self.guardrails, scratchpad, self.prompt_file_content.as_deref(), &self.completion_promise);
 
         let mut env = HashMap::new();
         env.insert("BORING_RUN_ID".to_string(), event.run_id.clone());
@@ -325,7 +358,7 @@ hats:
     fn test_assemble_prompt_includes_instructions() {
         let config = minimal_config();
         let hat = &config.hats["worker"];
-        let prompt = JobBuilder::assemble_prompt(hat, &test_event(), &[], None, None);
+        let prompt = JobBuilder::assemble_prompt(hat, &test_event(), &[], None, None, "LOOP_COMPLETE");
         assert!(prompt.contains("Do the work."));
     }
 
@@ -333,7 +366,7 @@ hats:
     fn test_assemble_prompt_includes_event_context() {
         let config = minimal_config();
         let hat = &config.hats["worker"];
-        let prompt = JobBuilder::assemble_prompt(hat, &test_event(), &[], None, None);
+        let prompt = JobBuilder::assemble_prompt(hat, &test_event(), &[], None, None, "LOOP_COMPLETE");
         assert!(prompt.contains("work.start"));
         assert!(prompt.contains("begin the work"));
     }
@@ -343,7 +376,7 @@ hats:
         let config = config_with_guardrails();
         let hat = &config.hats["worker"];
         let guardrails: Vec<String> = config.core.as_ref().unwrap().guardrails.clone();
-        let prompt = JobBuilder::assemble_prompt(hat, &test_event(), &guardrails, None, None);
+        let prompt = JobBuilder::assemble_prompt(hat, &test_event(), &guardrails, None, None, "LOOP_COMPLETE");
         assert!(prompt.contains("Always commit after changes."));
         assert!(prompt.contains("Run tests before emitting done."));
     }
@@ -352,7 +385,7 @@ hats:
     fn test_assemble_prompt_includes_scratchpad() {
         let config = minimal_config();
         let hat = &config.hats["worker"];
-        let prompt = JobBuilder::assemble_prompt(hat, &test_event(), &[], Some("## Progress\n- Step 1 done"), None);
+        let prompt = JobBuilder::assemble_prompt(hat, &test_event(), &[], Some("## Progress\n- Step 1 done"), None, "LOOP_COMPLETE");
         assert!(prompt.contains("## Progress"));
         assert!(prompt.contains("- Step 1 done"));
     }
@@ -361,7 +394,7 @@ hats:
     fn test_assemble_prompt_no_scratchpad() {
         let config = minimal_config();
         let hat = &config.hats["worker"];
-        let prompt = JobBuilder::assemble_prompt(hat, &test_event(), &[], None, None);
+        let prompt = JobBuilder::assemble_prompt(hat, &test_event(), &[], None, None, "LOOP_COMPLETE");
         assert!(!prompt.contains("Scratchpad"));
     }
 

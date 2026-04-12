@@ -48,8 +48,6 @@ core:
   guardrails:
     - "The API contract in .boring/scratchpad/shared.md is the source of truth."
     - "Frontend and backend MUST NOT depend on each other — only the contract."
-    - "Read .boring/prompt.md for requirements."
-    - "Always emit the required BORING_EMIT event when you are done."
 
 hats:
   spec_writer:
