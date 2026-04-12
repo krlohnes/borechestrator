@@ -18,125 +18,61 @@ Borechestrator takes the conceptual model from [Ralph orchestrator](https://gith
 
 - **K8s Jobs** for agent execution (scheduling, retries, resource limits, RBAC — all free)
 - **NATS JetStream** for events (wildcard routing, persistence, exactly-once delivery)
-- **S3-compatible storage** for scratchpads (versioned, IAM-controlled, boring)
-- **K8s Secrets / env vars / AWS Secrets Manager** for credentials (pick your boring)
+- **S3-compatible storage** for shared state (versioned, IAM-controlled, boring)
+- **K8s Secrets / env vars / AWS Secrets Manager / Azure Key Vault** for credentials
 
-Your security team already knows how to audit this. Your platform team already knows how to monitor this. Your oncall already knows how to debug this. Nobody needs to learn a new permission model, a new observability stack, or a new deployment pipeline.
+Your security team already knows how to audit this. Your platform team already knows how to monitor this. Your oncall already knows how to debug this.
 
 It's just K8s. It's just NATS. It's just S3. It's just boring.
 
-## Architecture
+## What It Actually Does
 
-### The Big Picture
+You write a YAML config that defines "hats" — specialized agent roles that trigger on events and publish new events when done. Borechestrator creates a K8s Job for each hat activation, routes events through NATS, shares state through S3, and pushes code to git. Each hat runs Claude (or any AI CLI) in full agent mode inside a container.
 
-```mermaid
-graph TB
-    Config[borechestrator.yml] --> Controller[Boring Controller]
-    Controller -->|subscribe| NATS[NATS JetStream]
-    Controller -->|create jobs| K8s[K8s Jobs]
-    Controller -->|read/write| S3[S3-Compatible Store]
-    Controller -->|resolve| Secrets[Secret Provider]
+Here's a real run that happened today — a contract-first fullstack pipeline where Claude agents wrote an Express.js bookmark manager API and HTML frontend, pushed to GitHub, all orchestrated across K8s pods:
 
-    K8s -->|agent stdout| Controller
-    K8s -->|publish events| NATS
-
-    subgraph "Per Hat Activation"
-        Job[K8s Job / Local Process]
-        Agent[boring-agent]
-        CLI[AI CLI Tool]
-        Job --> Agent --> CLI
-    end
-
-    K8s --> Job
+```
+spec_writer (K8s Job) → drafted API contract → pushed to S3
+  → spec_reviewer (K8s Job) → approved
+    → backend_builder (K8s Job) → wrote server.js, package.json → pushed to GitHub
+    → frontend_builder (K8s Job, concurrent) → wrote index.html → pushed to GitHub
+      → verifier (K8s Job) → checked both against contract
 ```
 
-### Event Flow
-
-Hats are specialized agent personas. Each hat subscribes to event topics and publishes new events when done. The controller routes events to hats based on trigger patterns. That's the whole orchestration model.
-
-```mermaid
-sequenceDiagram
-    participant C as Controller
-    participant N as NATS
-    participant P as Planner Hat
-    participant B as Builder Hat
-    participant V as Verifier Hat
-
-    C->>N: publish(pipeline.start)
-    N->>C: event: pipeline.start
-    C->>P: create job
-    P->>P: echo "BORING_EMIT build.ready ..."
-    P-->>C: stdout parsed
-    C->>N: publish(build.ready)
-    N->>C: event: build.ready
-    C->>B: create job
-    B->>B: echo "BORING_EMIT verify.ready ..."
-    B-->>C: stdout parsed
-    C->>N: publish(verify.ready)
-    N->>C: event: verify.ready
-    C->>V: create job
-    V->>V: echo "LOOP_COMPLETE"
-    V-->>C: stdout parsed
-    C->>N: publish(_system.completion)
-    Note over C: Run complete
-```
-
-### Crate Structure
-
-```mermaid
-graph LR
-    Proto[boring-proto] --> Broker[boring-broker]
-    Proto --> Store[boring-store]
-    Proto --> Controller[boring-controller]
-    Proto --> Secrets[boring-secrets]
-    Broker --> Controller
-    Store --> Controller
-    Runtime[boring-runtime] --> Controller
-    Secrets --> Controller
-    Controller --> CLI[boring-cli]
-    Proto --> Agent[boring-agent]
-```
-
-| Crate | What it does |
-|---|---|
-| `boring-proto` | Types: Topic, Event, Config. Zero heavy deps. |
-| `boring-broker` | Broker trait + NATS JetStream implementation |
-| `boring-store` | Store trait + local filesystem (S3 coming) |
-| `boring-runtime` | Runtime trait + local process (K8s coming) |
-| `boring-secrets` | SecretProvider trait + env, file, K8s, AWS impls |
-| `boring-controller` | Event router, job builder, reconciler loop |
-| `boring-cli` | The `boring` CLI binary |
-| `boring-agent` | Runs inside containers (coming soon) |
-
-### Secret Resolution
-
-```mermaid
-graph LR
-    Config[hat env config] --> Resolver[JobBuilder.resolve_env]
-    Resolver --> Chain[ChainSecretProvider]
-    Chain --> Env[BORING_SECRET_* env vars]
-    Chain --> File[~/.boring/secrets/ files]
-    Chain --> K8s[K8s Secrets]
-    Chain --> AWS[AWS Secrets Manager]
-    Resolver --> Job[JobSpec with resolved env]
-
-    style Env fill:#90EE90
-    style File fill:#90EE90
-    style K8s fill:#FFE4B5
-    style AWS fill:#FFE4B5
-```
-
-Green = implemented. Orange = feature-gated, needs `--features k8s` or `--features aws`.
+The code landed at [krlohnes/boring-bookmark-demo](https://github.com/krlohnes/boring-bookmark-demo).
 
 ## Config
-
-Borechestrator uses a YAML config that's a superset of Ralph's format. If you know Ralph, you know this.
 
 ```yaml
 event_loop:
   starting_event: work.start
   completion_promise: LOOP_COMPLETE
-  max_iterations: 50
+  max_iterations: 20
+  max_runtime_seconds: 3600
+
+cli:
+  backend: claude
+  model: sonnet  # save your credits
+
+runtime:
+  mode: k8s
+  namespace: default
+  default_image: borechestrator/claude-agent:latest
+
+broker:
+  url: nats://127.0.0.1:4222
+  pod_url: nats://nats.default.svc:4222  # what pods use
+
+store:
+  endpoint: http://rustfs:9000
+  bucket: borechestrator
+
+git:
+  repo: https://github.com/org/project.git
+  base_branch: main
+  branch_strategy: shared
+  credentials:
+    from_secret: github-token
 
 hats:
   planner:
@@ -144,37 +80,40 @@ hats:
     description: "Breaks work into sub-tasks"
     triggers: ["work.start", "subtask.done"]
     publishes: ["subtask.ready"]
-    command: "claude --print \"$BORING_PROMPT\""
+    secret_mounts:
+      - from_secret: claude-credentials
+        mount_path: /home/agent/.claude/.credentials.json
     instructions: |
       Read the task. Break it into sub-tasks.
-      Emit BORING_EMIT subtask.ready for each one.
-    env:
-      ANTHROPIC_API_KEY:
-        from_secret: anthropic-api-key
 
   builder:
     name: Builder
     description: "Implements a sub-task"
     triggers: ["subtask.ready"]
     publishes: ["subtask.done"]
-    command: "claude --print \"$BORING_PROMPT\""
+    secret_mounts:
+      - from_secret: claude-credentials
+        mount_path: /home/agent/.claude/.credentials.json
     instructions: |
-      Implement the sub-task described in the event payload.
-      When done, emit BORING_EMIT subtask.done.
-    env:
-      ANTHROPIC_API_KEY:
-        from_secret: anthropic-api-key
+      Implement the sub-task. Write the code.
+      Commit and push your changes.
 ```
 
-### Event Convention
+No `command:` field needed — `cli.backend` handles invocation. No `BORING_EMIT` stdout markers needed — the `emit` CLI tool handles event emission. No `.boring/` management needed — `boring-agent` handles S3 sync and git.
 
-Agents emit events by printing to stdout:
+### The `emit` CLI
 
+Agents signal events by calling the `emit` CLI tool (installed in the container):
+
+```bash
+emit subtask.ready "implemented the parser"    # emit an event
+emit --complete                                 # signal the run is done
+emit --memory pattern "always use snake_case"   # save a learning
+emit --task add "implement auth"                # create a task
+emit --scratchpad "step 3 done"                 # append to shared scratchpad
 ```
-BORING_EMIT <topic> <payload>
-```
 
-The completion promise (e.g., `LOOP_COMPLETE`) anywhere in stdout signals the run is done.
+If the agent doesn't call `emit`, the reconciler auto-emits the hat's default publish topic to keep the pipeline moving.
 
 ### Topic Wildcards
 
@@ -182,204 +121,151 @@ NATS-compatible. Because why invent a new pattern matching syntax.
 
 - `work.start` — exact match
 - `work.*` — matches `work.start`, `work.done`, not `work.sub.deep`
-- `work.>` — matches `work.start`, `work.sub.deep`, everything under `work.`
+- `work.>` — matches everything under `work.`
 - `>` — matches everything
+
+## Architecture
+
+```mermaid
+graph TB
+    Config[borechestrator.yml] --> Controller[Boring Controller]
+    Controller -->|subscribe| NATS[NATS JetStream]
+    Controller -->|create jobs| K8s[K8s Jobs]
+    Controller -->|read/write| S3[S3-Compatible Store]
+    Controller -->|resolve| Secrets[Secret Provider Chain]
+
+    subgraph "Per Hat Activation"
+        Agent[boring-agent]
+        Agent -->|1. clone repo| Git[Git]
+        Agent -->|2. materialize| Boring[.boring/ workspace]
+        Agent -->|3. run| CLI[AI CLI - Claude/Codex/etc]
+        Agent -->|4. sync| S3
+        Agent -->|5. read emits| Emit[emit CLI → NATS]
+        Agent -->|6. push| Git
+    end
+
+    K8s --> Agent
+```
+
+### Crates
+
+| Crate | What it does |
+|---|---|
+| `boring-proto` | Types: Topic, Event, Config. Zero heavy deps. |
+| `boring-broker` | Broker trait + NATS JetStream |
+| `boring-store` | Store trait + local filesystem + S3 |
+| `boring-runtime` | Runtime trait + local process + Docker + K8s Jobs |
+| `boring-secrets` | SecretProvider trait + env, file, K8s Secrets, AWS SM, Azure KV |
+| `boring-controller` | Event router, job builder, reconciler loop, memories, tasks |
+| `boring-agent` | Container entrypoint: git, S3 sync, .boring/ workspace, emit |
+| `boring-cli` | The `boring` CLI binary |
+
+### Secret Resolution
+
+In K8s mode: env vars → `~/.boring/secrets/` files → K8s Secrets.
+
+```yaml
+env:
+  API_KEY:
+    from_secret: my-api-key   # resolved through the chain
+
+secret_mounts:
+  - from_secret: claude-credentials              # K8s Secret name
+    mount_path: /home/agent/.claude/.credentials.json  # mounted as file
+```
 
 ## Quick Start
 
 ### Local Dev
 
 ```bash
-# Start NATS + RustFS
-./scripts/dev-up.sh
-
-# Validate a config
-cargo run -p boring-cli -- validate -c my-config.yml
-
-# Run an orchestration
-cargo run -p boring-cli -- run -c my-config.yml
-
-# Tear down
+./scripts/dev-up.sh              # Start NATS + RustFS
+boring init feature               # Scaffold a config
+boring validate -c borechestrator.yml
+boring run -c borechestrator.yml  # Local mode (no K8s needed)
 ./scripts/dev-down.sh
 ```
 
 ### Kubernetes
 
 ```bash
-# Deploy NATS + RustFS via Helm
-./scripts/k8s-up.sh
+./scripts/k8s-up.sh              # Deploy NATS + RustFS via Helm
 
-# Tear down
+# Build the agent image
+docker build -f Dockerfile.claude-agent -t borechestrator/claude-agent:latest .
+
+# Create secrets
+kubectl create secret generic claude-credentials \
+  --from-file=.credentials.json=path/to/credentials.json
+
+# Run
+boring run -c borechestrator.yml --mode k8s
+
 ./scripts/k8s-down.sh
 ```
 
-### Secrets
-
-Set secrets as env vars:
+### Presets
 
 ```bash
-export BORING_SECRET_ANTHROPIC_API_KEY=sk-ant-...
+boring init --list
 ```
 
-Or drop them in files:
-
-```bash
-echo "sk-ant-..." > ~/.boring/secrets/anthropic-api-key
-```
-
-Then reference them in your config:
-
-```yaml
-env:
-  ANTHROPIC_API_KEY:
-    from_secret: anthropic-api-key
-```
+12 presets: feature, tdd, research, debug, review, minimal, spec-driven, mob, refactor, pr-review, docs, deploy.
 
 ## Building Agent Images
 
-Borechestrator doesn't care what's in the container. Its job is orchestration — routing events, scheduling jobs, managing state. What AI tool you use, what MCP servers you run, what skills you install — that's your Dockerfile.
-
-The base image has `boring-agent`, which handles the plumbing (S3 sync, NATS events, git). You add the AI tool on top:
-
-### Claude Code
+Borechestrator doesn't care what's in the container. You bring the agent. I bring the plumbing.
 
 ```dockerfile
 FROM borechestrator/agent:latest
 
-# Install Claude Code
-RUN curl -fsSL https://claude.ai/install.sh | sh
+# Add your AI tool
+RUN npm install -g @anthropic-ai/claude-code
 
-# Your MCP servers, skills, CLAUDE.md, whatever
-COPY .claude/ /home/agent/.claude/
-COPY CLAUDE.md /workspace/CLAUDE.md
-```
-
-### Claude Code + MCP Servers
-
-```dockerfile
-FROM borechestrator/agent:latest
-
-RUN curl -fsSL https://claude.ai/install.sh | sh
-RUN npm install -g @modelcontextprotocol/server-github
-RUN npm install -g @anthropic/mcp-server-postgres
-
+# Add your MCP servers, skills, whatever
 COPY .claude/ /home/agent/.claude/
 ```
 
-### Codex (for review hats)
+### Mixed Models
 
-```dockerfile
-FROM borechestrator/agent:latest
-
-RUN npm install -g @openai/codex
-```
-
-### Custom Python Agent
-
-```dockerfile
-FROM borechestrator/agent:latest
-
-RUN pip install anthropic
-COPY my_agent.py /usr/local/bin/my-agent
-RUN chmod +x /usr/local/bin/my-agent
-```
-
-### Mixed Models in One Orchestration
-
-The whole point of hats is that each one can be a different tool:
+Each hat can use a different tool, model, or container image:
 
 ```yaml
 cli:
-  backend: claude  # default for hats without a command
+  backend: claude
+  model: sonnet        # default model
 
 hats:
-  planner:
-    name: Planner
-    # Uses default backend (claude)
-    instructions: |
-      Break the work into tasks...
-
   builder:
-    name: Builder
-    image: ghcr.io/myorg/claude-with-mcp:latest
-    # Custom image with MCP servers for database access
-    instructions: |
-      Implement the feature...
+    # Uses default (Claude Sonnet)
+    instructions: "Build the feature..."
 
   reviewer:
-    name: Reviewer
     image: ghcr.io/myorg/codex-reviewer:latest
     command: "codex \"$BORING_PROMPT\""
-    # Different model, different strengths
-    instructions: |
-      Review for correctness and edge cases...
+    instructions: "Review for correctness..."
 ```
 
 ### The `.boring/` Directory
 
-Every agent container gets a `.boring/` directory materialized from S3 before the command runs. The AI CLI can grep and read it like any other file:
+Every agent gets a `.boring/` workspace materialized from S3:
 
 ```
 .boring/
-  prompt.md              # the assembled prompt
-  event.json             # current event context
-  scratchpad/            # all hat scratchpads (cross-hat visible)
-    planner.md
-    builder.md
-    shared.md
-  memories.md            # human-readable learned patterns
-  memories.json          # raw JSON for programmatic access
-  tasks.md               # task checklist
-  tasks.json             # raw JSON
+  prompt.md         # assembled prompt
+  event.json        # current event context
+  scratchpad/       # shared notes (cross-hat visible)
+  memories.md       # learnings from previous iterations
+  tasks.md          # task checklist
 ```
 
-Your AI tool doesn't need a special plugin or API to access orchestration state. It's just files. `grep -r "pattern" .boring/` works. `cat .boring/memories.md` works. Whatever your tool does with files, it does with `.boring/`.
-
-After the command finishes, `boring-agent` syncs modified files back to S3 and commits them to git. Other hats in the same run can see your scratchpad updates on their next activation.
+Your AI tool greps and reads these like any files. No special API needed.
 
 ### What Borechestrator Is Not
 
-Borechestrator is not a framework for building AI agents. It doesn't wrap the Anthropic API. It doesn't manage conversation history. It doesn't handle tool use or function calling. There are plenty of frameworks for that, and they're all trying to be clever.
+Borechestrator is not a framework for building AI agents. It doesn't wrap the Anthropic API. It doesn't manage conversation history. It doesn't handle tool use or function calling.
 
 Borechestrator is the boring glue between agents that already exist. You bring the agent. I bring the plumbing.
-
-## Status
-
-This is early. The local-mode pipeline works end-to-end. Here's what exists and what doesn't:
-
-- [x] YAML config parsing (Ralph-compatible superset)
-- [x] NATS-compatible topic wildcard matching
-- [x] Event routing with specificity priority
-- [x] Local process runtime
-- [x] Local filesystem store
-- [x] Reconciler loop (the actual orchestrator)
-- [x] Stdout event parsing (`BORING_EMIT`)
-- [x] Secret management (env, file, K8s, AWS)
-- [x] CLI: `validate`, `run`, `emit`
-- [x] End-to-end tests against live NATS
-- [x] K8s Job runtime (kube-rs, tested against Docker Desktop K8s)
-- [x] Docker runtime (docker run, tested)
-- [x] S3 store implementation (aws-sdk-s3, tested against RustFS)
-- [x] `boring-agent` container wrapper (with Dockerfile)
-- [x] Git integration (clone, branch, push per job)
-- [x] Backpressure gates (global + per-hat quality checks)
-- [x] Concurrent hat execution (parallel job creation)
-- [x] Metrics (atomic counters, JSON snapshots)
-- [x] `boring init` scaffolding (12 presets)
-- [x] Multi-backend abstraction (`cli.backend`)
-- [x] prompt_file support + CLI `-p` / `-P` flags
-- [x] Memories system (pattern, decision, fix, context)
-- [x] Tasks system (work item tracking)
-- [x] Hooks system (pre/post lifecycle events)
-- [x] wave_id event grouping
-- [x] required_events fan-in barrier
-- [x] Run checkpointing
-- [x] Human-in-the-loop (CLI + extensible trait)
-- [x] `.boring/` workspace materialization (grep-friendly state)
-- [x] `boring status` / `boring logs` commands
-- [x] OTel tracing bridge (feature-gated, OTLP export)
-- [x] Helm chart for borechestrator controller
-- [x] Docker images + GitHub Actions CI/CD
 
 ## Name
 
