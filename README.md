@@ -164,7 +164,7 @@ AWS Secrets Manager and Azure Key Vault are behind feature flags.
 
 ## Agent images
 
-Not my problem. You build the container. I run it.
+You build the container. There are Dockerfiles here. Have fun. Your existing infrastructure runs it.
 
 ```dockerfile
 FROM borechestrator/agent:latest
