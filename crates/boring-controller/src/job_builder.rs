@@ -218,6 +218,13 @@ impl JobBuilder {
         env.insert("BORING_COMPLETION_PROMISE".to_string(), self.completion_promise.clone());
         env.insert("BORING_PROMPT".to_string(), prompt.clone());
 
+        // Default event to emit if the agent doesn't call emit itself
+        if let Some(ref dp) = hat.default_publishes {
+            env.insert("BORING_DEFAULT_PUBLISH".to_string(), dp.clone());
+        } else if let Some(first) = hat.publishes.first() {
+            env.insert("BORING_DEFAULT_PUBLISH".to_string(), first.clone());
+        }
+
         // Write prompt to a temp file so backends can read it without shell quoting issues
         let prompt_file = std::env::temp_dir()
             .join(format!("boring-prompt-{}-{}.md", event.run_id, hat_id));
