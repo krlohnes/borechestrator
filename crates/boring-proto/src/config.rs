@@ -119,7 +119,7 @@ impl CliConfig {
         // This handles both local (temp file on host) and container (env var only) modes.
         let prompt_arg = "if [ -f \"$BORING_PROMPT_FILE\" ]; then cat \"$BORING_PROMPT_FILE\"; else echo \"$BORING_PROMPT\"; fi";
         match self.backend.as_str() {
-            "claude" => format!("claude --print -p \"$({})\"", prompt_arg),
+            "claude" => format!("claude --print --dangerously-skip-permissions -p \"$({})\"", prompt_arg),
             "kiro" => format!("kiro --print -p \"$({})\"", prompt_arg),
             "gemini" => format!("({}) | gemini", prompt_arg),
             "codex" => format!("({}) | codex", prompt_arg),
