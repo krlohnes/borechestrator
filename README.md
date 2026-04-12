@@ -229,6 +229,10 @@ Not an AI framework. Not an API wrapper. Not a conversation manager. Not a promp
 
 It's the plumbing between AI agents that already exist. You bring the agent. I bring the `kubectl`.
 
+## Consulting
+
+Sure. [Reach out](https://keithlohnes.com). I'll set up your K8s cluster to run AI agents and bill you for it. Then I'll leave and your platform team will barely notice I was there.
+
 ## Name
 
 It's called borechestrator because it's boring. If your orchestrator is exciting, something has gone wrong.
