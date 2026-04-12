@@ -28,31 +28,46 @@ pub async fn clone_and_checkout(
         .status()
         .await;
 
-    info!(repo = %repo_url, branch = %base_branch, "cloning repository");
+    // Try to clone the work branch directly (it may already exist from a previous hat).
+    // If it doesn't exist, clone the base branch and create the work branch.
+    info!(repo = %repo_url, work_branch = %work_branch, "cloning repository");
 
     let status = Command::new("git")
-        .args(["clone", "--branch", base_branch, "--single-branch", &clone_url])
+        .args(["clone", "--branch", work_branch, "--single-branch", &clone_url])
         .arg(target_dir)
         .status()
-        .await
-        .context("failed to run git clone")?;
+        .await;
 
-    if !status.success() {
-        anyhow::bail!("git clone failed with exit code {:?}", status.code());
-    }
+    if status.is_ok() && status.unwrap().success() {
+        info!(branch = %work_branch, "cloned existing work branch");
+    } else {
+        // Work branch doesn't exist yet — clone base and create it
+        // Clean up failed clone attempt
+        let _ = tokio::fs::remove_dir_all(target_dir).await;
 
-    // Create and checkout the work branch
-    info!(branch = %work_branch, "creating work branch");
+        info!(branch = %base_branch, "work branch not found, cloning base");
+        let status = Command::new("git")
+            .args(["clone", "--branch", base_branch, "--single-branch", &clone_url])
+            .arg(target_dir)
+            .status()
+            .await
+            .context("failed to clone base branch")?;
 
-    let status = Command::new("git")
-        .args(["checkout", "-b", work_branch])
-        .current_dir(target_dir)
-        .status()
-        .await
-        .context("failed to create work branch")?;
+        if !status.success() {
+            anyhow::bail!("git clone failed with exit code {:?}", status.code());
+        }
 
-    if !status.success() {
-        anyhow::bail!("git checkout -b failed with exit code {:?}", status.code());
+        info!(branch = %work_branch, "creating work branch");
+        let status = Command::new("git")
+            .args(["checkout", "-b", work_branch])
+            .current_dir(target_dir)
+            .status()
+            .await
+            .context("failed to create work branch")?;
+
+        if !status.success() {
+            anyhow::bail!("git checkout -b failed with exit code {:?}", status.code());
+        }
     }
 
     // Install pre-push hook that rebases before push.
