@@ -211,11 +211,10 @@ async fn main() -> anyhow::Result<()> {
         info!("no emit file found — agent did not call `emit`");
     }
 
-    // ── Phase 7: Push git changes ───────────────────────────────
+    // ── Phase 7: Push git changes (with conflict retry) ──────────
     if let Some(ref branch) = work_branch {
-        // Add .boring/ to git so it's versioned with the code
         let _ = Command::new("git")
-            .args(["add", ".boring/"])
+            .args(["add", "-A"])
             .current_dir(&work_dir)
             .status()
             .await;
@@ -225,10 +224,43 @@ async fn main() -> anyhow::Result<()> {
             .status()
             .await;
 
-        match git::push(&work_dir, branch).await {
-            Ok(true) => info!("pushed changes to {}", branch),
-            Ok(false) => info!("no changes to push"),
-            Err(e) => error!("git push failed: {}", e),
+        let max_retries = 3;
+        for attempt in 0..max_retries {
+            match git::push(&work_dir, branch).await {
+                Ok(true) => {
+                    info!("pushed changes to {}", branch);
+                    break;
+                }
+                Ok(false) => {
+                    info!("no changes to push");
+                    break;
+                }
+                Err(e) => {
+                    if attempt + 1 >= max_retries {
+                        error!("git push failed after {} attempts: {}", max_retries, e);
+                        break;
+                    }
+                    info!(attempt = attempt + 1, "push failed, asking Claude to fix conflicts");
+
+                    // Re-invoke Claude to fix the rebase conflicts
+                    let fix_output = Command::new("bash")
+                        .arg("-c")
+                        .arg("claude --print --dangerously-skip-permissions -p 'There are git rebase conflicts. Run git status to see them, fix all conflicted files, then run: git add -A && git rebase --continue'")
+                        .current_dir(&work_dir)
+                        .output()
+                        .await;
+
+                    match fix_output {
+                        Ok(o) if o.status.success() => {
+                            info!("Claude fixed conflicts, retrying push");
+                        }
+                        _ => {
+                            error!("Claude failed to fix conflicts");
+                            break;
+                        }
+                    }
+                }
+            }
         }
     }
 
