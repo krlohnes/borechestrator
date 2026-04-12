@@ -69,10 +69,11 @@ impl Runtime for DockerRuntime {
         }
 
         cmd.arg(&image);
-        cmd.arg("sh").arg("-c").arg(&spec.command);
+        let teed = format!("set -o pipefail; ({}) 2>&1 | tee /dev/stderr", spec.command);
+        cmd.arg("bash").arg("-c").arg(&teed);
 
         cmd.stdout(std::process::Stdio::piped());
-        cmd.stderr(std::process::Stdio::piped());
+        cmd.stderr(std::process::Stdio::inherit());
 
         let child = cmd.spawn()?;
 

@@ -112,17 +112,18 @@ fn default_prompt_mode() -> String {
 }
 
 impl CliConfig {
-    /// Get the shell command for the configured backend.
+    /// Get the shell command template for the configured backend.
+    /// Uses $BORING_PROMPT_FILE to avoid shell quoting issues with large prompts.
     pub fn backend_command(&self) -> String {
         match self.backend.as_str() {
-            "claude" => "claude --print \"$BORING_PROMPT\"".to_string(),
-            "kiro" => "kiro --print \"$BORING_PROMPT\"".to_string(),
-            "gemini" => "gemini \"$BORING_PROMPT\"".to_string(),
-            "codex" => "codex \"$BORING_PROMPT\"".to_string(),
-            "amp" => "amp \"$BORING_PROMPT\"".to_string(),
-            "copilot" => "copilot \"$BORING_PROMPT\"".to_string(),
-            "opencode" => "opencode \"$BORING_PROMPT\"".to_string(),
-            other => format!("{} \"$BORING_PROMPT\"", other),
+            "claude" => "claude --print -p \"$(cat $BORING_PROMPT_FILE)\"".to_string(),
+            "kiro" => "kiro --print -p \"$(cat $BORING_PROMPT_FILE)\"".to_string(),
+            "gemini" => "gemini < $BORING_PROMPT_FILE".to_string(),
+            "codex" => "codex < $BORING_PROMPT_FILE".to_string(),
+            "amp" => "amp < $BORING_PROMPT_FILE".to_string(),
+            "copilot" => "copilot < $BORING_PROMPT_FILE".to_string(),
+            "opencode" => "opencode < $BORING_PROMPT_FILE".to_string(),
+            other => format!("{} < $BORING_PROMPT_FILE", other),
         }
     }
 }

@@ -150,6 +150,12 @@ impl JobBuilder {
         env.insert("BORING_COMPLETION_PROMISE".to_string(), self.completion_promise.clone());
         env.insert("BORING_PROMPT".to_string(), prompt.clone());
 
+        // Write prompt to a temp file so backends can read it without shell quoting issues
+        let prompt_file = std::env::temp_dir()
+            .join(format!("boring-prompt-{}-{}.md", event.run_id, hat_id));
+        std::fs::write(&prompt_file, &prompt).ok();
+        env.insert("BORING_PROMPT_FILE".to_string(), prompt_file.to_string_lossy().to_string());
+
         if let Some(content) = scratchpad {
             env.insert("BORING_SCRATCHPAD_CONTENT".to_string(), content.to_string());
         }

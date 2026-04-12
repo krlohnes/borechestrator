@@ -29,10 +29,13 @@ impl Runtime for LocalRuntime {
         *id_lock += 1;
         drop(id_lock);
 
-        let mut cmd = Command::new("sh");
-        cmd.arg("-c").arg(&spec.command);
+        let mut cmd = Command::new("bash");
+        // Tee stdout to stderr so the user sees output live while we capture it
+        // pipefail ensures we get the command's exit code, not tee's
+        let teed = format!("set -o pipefail; ({}) 2>&1 | tee /dev/stderr", spec.command);
+        cmd.arg("-c").arg(&teed);
         cmd.stdout(std::process::Stdio::piped());
-        cmd.stderr(std::process::Stdio::piped());
+        cmd.stderr(std::process::Stdio::inherit());
 
         for (key, value) in &spec.env {
             cmd.env(key, value);
@@ -63,12 +66,8 @@ impl Runtime for LocalRuntime {
         if output.status.success() {
             Ok(JobStatus::Succeeded { stdout })
         } else {
-            let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-            let reason = if stderr.is_empty() {
-                format!("exit code: {}", output.status.code().unwrap_or(-1))
-            } else {
-                stderr
-            };
+            // stderr is inherited (displayed live), so use exit code for the reason
+            let reason = format!("exit code: {}", output.status.code().unwrap_or(-1));
             Ok(JobStatus::Failed { reason, stdout })
         }
     }

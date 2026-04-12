@@ -1,22 +1,10 @@
 # Contract-First Fullstack: spec the API, build both sides concurrently, verify against the contract.
 #
-# This is the example that justifies orchestration. You can't do this with one agent because:
-# 1. The contract must be locked before implementation starts
-# 2. Frontend and backend build concurrently (different contexts, maybe different models)
-# 3. Verification tests both sides against the shared contract, not against each other
-#
-# Event flow:
-#   spec.start
-#     → spec_writer drafts OpenAPI/contract
-#     → spec_reviewer approves or rejects
-#     → spec.approved triggers BOTH frontend and backend concurrently
-#     → each emits build.done when finished
-#     → verifier runs contract tests against both
-#     → done or back to fix
+# No "command:" needed — cli.backend handles invocation automatically.
 #
 # Usage:
 #   cargo run -p boring-cli -- run -c examples/contract-first-fullstack.yml \
-#     -p "Build a REST API for a todo list with CRUD endpoints and a React frontend"
+#     -p "Build a REST API for a bookmark manager with CRUD endpoints and a vanilla JS frontend"
 
 event_loop:
   starting_event: spec.start
@@ -39,103 +27,73 @@ hats:
     description: "Drafts the API contract from requirements"
     triggers: ["spec.start", "spec.rejected"]
     publishes: ["spec.ready"]
-    command: |
-      claude --print "Read .boring/prompt.md for the feature requirements.
+    instructions: |
+      Read the task requirements from the event payload.
 
-      Draft an API contract as an OpenAPI-style specification. Include:
-      - All endpoints (method, path, request/response schemas)
+      Draft an API contract. For each endpoint specify:
+      - Method + path
+      - Request body schema (with types)
+      - Response schema (with types)
       - Error responses
-      - Example payloads
 
-      Write the contract to stdout prefixed with BORING_SCRATCHPAD on each line
-      so it's saved to the shared scratchpad. Other hats will read it from
-      .boring/scratchpad/shared.md.
+      Output each line of the contract prefixed with BORING_SCRATCHPAD so it's saved.
 
-      If this is a spec.rejected event, read the feedback and revise.
+      When done: BORING_EMIT spec.ready contract drafted
 
-      When the contract is written:
-      BORING_EMIT spec.ready"
-    instructions: "Draft or revise the API contract."
+      If this is a spec.rejected event, revise based on the feedback.
 
   spec_reviewer:
     name: Contract Reviewer
     description: "Reviews the API contract for completeness"
     triggers: ["spec.ready"]
     publishes: ["spec.approved", "spec.rejected"]
-    command: |
-      claude --print "Review the API contract in .boring/scratchpad/shared.md.
+    instructions: |
+      Review the API contract.
 
-      Check:
-      - Are all CRUD operations covered?
-      - Are request/response schemas complete?
-      - Are error cases handled?
-      - Is it unambiguous enough for two independent teams to implement against?
+      Check: are all operations covered, are schemas complete, are errors handled,
+      is it unambiguous enough for independent implementation?
 
-      If issues: BORING_EMIT spec.rejected <specific feedback>
-      If solid: BORING_EMIT spec.approved"
-    instructions: "Review the API contract."
+      If issues: BORING_EMIT spec.rejected <feedback>
+      If solid: BORING_EMIT spec.approved
 
   backend_builder:
     name: Backend Builder
     description: "Implements the backend API from the contract"
     triggers: ["spec.approved", "backend.fix"]
     publishes: ["backend.done"]
-    command: |
-      claude --print "Implement the backend API according to the contract in .boring/scratchpad/shared.md.
+    instructions: |
+      Implement the backend API matching the contract exactly.
+      In-memory storage is fine. Include error handling.
+      Do NOT depend on frontend code — only the contract.
 
-      Requirements:
-      - Match every endpoint in the contract exactly
-      - Include proper error handling for all documented error cases
-      - Write tests that verify the API matches the contract
+      If this is a backend.fix event, fix what the verifier found wrong.
 
-      Do NOT look at or depend on the frontend code.
-
-      If this is a backend.fix event, read .boring/scratchpad/verifier.md for what to fix.
-
-      When implementation is complete and tests pass:
-      BORING_EMIT backend.done"
-    instructions: "Implement the backend API from the contract."
+      When done: BORING_EMIT backend.done
 
   frontend_builder:
     name: Frontend Builder
     description: "Implements the frontend from the contract"
     triggers: ["spec.approved", "frontend.fix"]
     publishes: ["frontend.done"]
-    command: |
-      claude --print "Implement the frontend according to the API contract in .boring/scratchpad/shared.md.
+    instructions: |
+      Implement the frontend matching the API contract.
+      Build API client functions for every endpoint.
+      Do NOT depend on backend code — only the contract.
 
-      Requirements:
-      - Build API client functions that match every endpoint in the contract
-      - Build UI components that use the API client
-      - Include types/interfaces generated from the contract schemas
+      If this is a frontend.fix event, fix what the verifier found wrong.
 
-      Do NOT look at or depend on the backend code.
-
-      If this is a frontend.fix event, read .boring/scratchpad/verifier.md for what to fix.
-
-      When implementation is complete:
-      BORING_EMIT frontend.done"
-    instructions: "Implement the frontend from the contract."
+      When done: BORING_EMIT frontend.done
 
   verifier:
     name: Contract Verifier
     description: "Tests both implementations against the contract"
     triggers: ["backend.done", "frontend.done"]
     publishes: ["backend.fix", "frontend.fix"]
-    command: |
-      claude --print "Verify that both frontend and backend conform to the API contract.
+    instructions: |
+      Verify implementations conform to the API contract.
 
-      Read the contract from .boring/scratchpad/shared.md.
+      Check backend endpoints, frontend API client, schema match.
 
-      Check:
-      1. Backend: Do all endpoints match the contract? Run the backend tests.
-      2. Frontend: Do API client functions match every endpoint? Do types match schemas?
-      3. Integration: Would the frontend and backend work together based on the contract?
-
-      Write your findings:
-      BORING_SCRATCHPAD Verification results: ...
-
-      If backend needs fixes: BORING_EMIT backend.fix <what's wrong>
-      If frontend needs fixes: BORING_EMIT frontend.fix <what's wrong>
-      If both conform to the contract: LOOP_COMPLETE"
-    instructions: "Verify both sides against the contract."
+      If backend broken: BORING_EMIT backend.fix <what's wrong>
+      If frontend broken: BORING_EMIT frontend.fix <what's wrong>
+      If both conform: LOOP_COMPLETE
