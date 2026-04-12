@@ -74,6 +74,14 @@ pub async fn push(target_dir: &Path, branch: &str) -> anyhow::Result<bool> {
         return Ok(false);
     }
 
+    // Pull before push to integrate other hats' changes
+    info!(branch = %branch, "pulling before push");
+    let _ = Command::new("git")
+        .args(["pull", "--rebase", "origin", branch])
+        .current_dir(target_dir)
+        .status()
+        .await;
+
     info!(branch = %branch, "pushing work branch");
 
     let status = Command::new("git")
