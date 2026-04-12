@@ -15,7 +15,7 @@ event_loop:
   starting_event: spec.start
   completion_promise: LOOP_COMPLETE
   max_iterations: 20
-  max_runtime_seconds: 1200
+  max_runtime_seconds: 3600
 
 runtime:
   mode: k8s
