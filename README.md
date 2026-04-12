@@ -4,6 +4,8 @@ The world's most boring AI agent orchestrator.
 
 *Your agents scale until AWS and Anthropic both send you emails.*
 
+**You probably don't need this.** If your agents fit on one machine, use [Ralph](https://github.com/mikeyobrien/ralph-orchestrator). It's simpler and it's what we based this on. Borechestrator is for when you've outgrown a single box and need the agents to run as K8s Jobs, share state through S3, and coordinate through a message broker. If that sentence didn't make you nod, close this tab.
+
 ## Why?
 
 Because every AI agent orchestrator is trying to be clever, and we're tired of it.
