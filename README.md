@@ -231,7 +231,7 @@ It's the plumbing between AI agents that already exist. You bring the agent. I b
 
 ## Consulting
 
-Sure. [Reach out](https://keithlohnes.com). I'll set up your K8s cluster to run AI agents and bill you for it. Then I'll leave and your platform team will barely notice I was there.
+Sure. [Reach out](https://keithlohnes.com). I'll set up your K8s cluster to run AI agents and bill you for it. Then I'll leave and your platform team will barely notice I was there. Until AWS and Anthropic both send you emails.
 
 ## Name
 
