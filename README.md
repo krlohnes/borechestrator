@@ -41,6 +41,18 @@ spec_writer (K8s Job) → drafted API contract → pushed to S3
 
 The code landed at [krlohnes/boring-bookmark-demo](https://github.com/krlohnes/boring-bookmark-demo).
 
+Cyclic patterns work too — a QA hat rejected a towers of hanoi implementation for using recursion instead of iteration, the implementer hat rewrote it, QA reviewed again:
+
+```
+implementer (K8s Job) → wrote recursive hanoi.py → pushed to GitHub
+  → qa (K8s Job) → rejected: "must be iterative, not recursive"
+    → implementer (K8s Job) → rewrote with move count → pushed
+      → qa (K8s Job) → rejected: "still recursive"
+        → implementer (K8s Job) → ...
+```
+
+Events bounce between hats until the QA is satisfied. No supervisor needed.
+
 ## Config
 
 ```yaml
