@@ -4,11 +4,11 @@ The world's most boring AI agent orchestrator.
 
 *Your agents scale until AWS and Anthropic both send you emails.*
 
-**You probably don't need this.** If your agents fit on one machine, use [Ralph](https://github.com/mikeyobrien/ralph-orchestrator). It's simpler and it's what we based this on. Borechestrator is for when you've outgrown a single box and need the agents to run as K8s Jobs, share state through S3, and coordinate through a message broker. If that sentence didn't make you nod, close this tab.
+**You probably don't need this.** If your agents fit on one machine, use [Ralph](https://github.com/mikeyobrien/ralph-orchestrator). It's simpler and it's what I based this on. Borechestrator is for when you've outgrown a single box and need the agents to run as K8s Jobs, share state through S3, and coordinate through a message broker. If that sentence didn't make you nod, close this tab.
 
 ## Why?
 
-Because every AI agent orchestrator is trying to be clever, and we're tired of it.
+Because every AI agent orchestrator is trying to be clever, and I'm tired of it.
 
 An AI agent orchestrator is just the AI agent loop, but with the ability to call other agents as tools. That's it. That's the whole idea. You don't need a novel framework. You don't need a new paradigm. You don't need seventeen abstractions over "send a message and wait for a response."
 
@@ -341,7 +341,7 @@ After the command finishes, `boring-agent` syncs modified files back to S3 and c
 
 Borechestrator is not a framework for building AI agents. It doesn't wrap the Anthropic API. It doesn't manage conversation history. It doesn't handle tool use or function calling. There are plenty of frameworks for that, and they're all trying to be clever.
 
-Borechestrator is the boring glue between agents that already exist. You bring the agent. We bring the plumbing.
+Borechestrator is the boring glue between agents that already exist. You bring the agent. I bring the plumbing.
 
 ## Status
 
