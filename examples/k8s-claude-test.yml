@@ -1,0 +1,35 @@
+# K8s Claude test: runs Claude in K8s with mounted OAuth credentials.
+#
+# Prerequisites:
+#   kubectl create secret generic claude-credentials \
+#     --from-file=.credentials.json=$HOME/.claude/.credentials.json
+#   docker build -f Dockerfile.claude-agent -t borechestrator/claude-agent:latest .
+#
+# Usage:
+#   cargo run -p boring-cli -- run -c examples/k8s-claude-test.yml --mode k8s
+
+event_loop:
+  starting_event: work.start
+  completion_promise: LOOP_COMPLETE
+  max_iterations: 5
+  max_runtime_seconds: 120
+
+runtime:
+  mode: k8s
+  namespace: default
+  default_image: borechestrator/claude-agent:latest
+
+cli:
+  backend: claude
+
+hats:
+  worker:
+    name: Worker
+    description: "Says hello via Claude on K8s"
+    triggers: ["work.start"]
+    publishes: []
+    secret_mounts:
+      - from_secret: claude-credentials
+        mount_path: /home/agent/.claude/.credentials.json
+    instructions: |
+      Say "Hello from K8s!" and then output LOOP_COMPLETE

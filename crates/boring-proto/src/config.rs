@@ -115,15 +115,16 @@ impl CliConfig {
     /// Get the shell command template for the configured backend.
     /// Uses $BORING_PROMPT_FILE to avoid shell quoting issues with large prompts.
     pub fn backend_command(&self) -> String {
+        // Use BORING_PROMPT_FILE if it exists (local mode), fall back to BORING_PROMPT env var.
+        // This handles both local (temp file on host) and container (env var only) modes.
+        let prompt_arg = "if [ -f \"$BORING_PROMPT_FILE\" ]; then cat \"$BORING_PROMPT_FILE\"; else echo \"$BORING_PROMPT\"; fi";
         match self.backend.as_str() {
-            "claude" => "claude --print -p \"$(cat $BORING_PROMPT_FILE)\"".to_string(),
-            "kiro" => "kiro --print -p \"$(cat $BORING_PROMPT_FILE)\"".to_string(),
-            "gemini" => "gemini < $BORING_PROMPT_FILE".to_string(),
-            "codex" => "codex < $BORING_PROMPT_FILE".to_string(),
-            "amp" => "amp < $BORING_PROMPT_FILE".to_string(),
-            "copilot" => "copilot < $BORING_PROMPT_FILE".to_string(),
-            "opencode" => "opencode < $BORING_PROMPT_FILE".to_string(),
-            other => format!("{} < $BORING_PROMPT_FILE", other),
+            "claude" => format!("claude --print -p \"$({})\"", prompt_arg),
+            "kiro" => format!("kiro --print -p \"$({})\"", prompt_arg),
+            "gemini" => format!("({}) | gemini", prompt_arg),
+            "codex" => format!("({}) | codex", prompt_arg),
+            "amp" => format!("({}) | amp", prompt_arg),
+            other => format!("({}) | {}", prompt_arg, other),
         }
     }
 }

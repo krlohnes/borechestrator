@@ -112,20 +112,15 @@ impl Runtime for K8sRuntime {
 
                         for (i, (secret_name, mount_path)) in spec.secret_mounts.iter().enumerate() {
                             let vol_name = format!("secret-{}", i);
-                            // Mount path is the directory; the file inside is the secret key
-                            let mount_dir = std::path::Path::new(mount_path)
-                                .parent()
-                                .map(|p| p.to_string_lossy().to_string())
-                                .unwrap_or_else(|| mount_path.clone());
-                            let filename = std::path::Path::new(mount_path)
+                            let key = std::path::Path::new(mount_path)
                                 .file_name()
                                 .map(|f| f.to_string_lossy().to_string())
                                 .unwrap_or_else(|| "secret".to_string());
 
                             volume_mounts.push(VolumeMount {
                                 name: vol_name.clone(),
-                                mount_path: mount_dir,
-                                sub_path: Some(filename.clone()),
+                                mount_path: mount_path.clone(),
+                                sub_path: Some(key.clone()),
                                 read_only: Some(true),
                                 ..Default::default()
                             });
@@ -145,6 +140,7 @@ impl Runtime for K8sRuntime {
                             containers: vec![Container {
                                 name: "agent".to_string(),
                                 image: Some(image),
+                                image_pull_policy: Some("IfNotPresent".to_string()),
                                 command: Some(vec!["sh".to_string(), "-c".to_string(), spec.command]),
                                 env: Some(env_vars),
                                 volume_mounts: if volume_mounts.is_empty() { None } else { Some(volume_mounts) },

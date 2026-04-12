@@ -1,0 +1,13 @@
+# Agent image with Claude Code pre-installed
+# Build: docker build -f Dockerfile.claude-agent -t borechestrator/claude-agent:latest .
+
+FROM node:22-slim
+
+RUN npm install -g @anthropic-ai/claude-code
+
+# Create agent user with home dir for .claude/
+RUN useradd -m -s /bin/bash agent
+USER agent
+WORKDIR /workspace
+
+ENTRYPOINT ["sh", "-c"]
