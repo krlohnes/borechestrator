@@ -108,7 +108,8 @@ fi
 
 /// Push the work branch to the remote.
 pub async fn push(target_dir: &Path, branch: &str) -> anyhow::Result<bool> {
-    // Check if there are any commits beyond what's on the remote
+    // Check if there are any commits to push.
+    // If the remote branch doesn't exist, all local commits are new.
     let output = Command::new("git")
         .args(["log", "--oneline", &format!("origin/{}..{}", branch, branch)])
         .current_dir(target_dir)
@@ -116,11 +117,14 @@ pub async fn push(target_dir: &Path, branch: &str) -> anyhow::Result<bool> {
         .await
         .context("failed to check for new commits")?;
 
-    let log_output = String::from_utf8_lossy(&output.stdout);
-    if log_output.trim().is_empty() {
-        info!("no new commits to push");
-        return Ok(false);
+    if output.status.success() {
+        let log_output = String::from_utf8_lossy(&output.stdout);
+        if log_output.trim().is_empty() {
+            info!("no new commits to push");
+            return Ok(false);
+        }
     }
+    // If the command failed (remote branch doesn't exist), we push anyway.
 
     info!(branch = %branch, "pushing work branch");
 
