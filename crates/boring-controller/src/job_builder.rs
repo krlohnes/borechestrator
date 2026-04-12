@@ -115,23 +115,21 @@ impl JobBuilder {
             - Memories from previous iterations are in .boring/memories.md\n\
             - Task list is in .boring/tasks.md\n\
             \n\
-            ## Events — YOU MUST emit one of these before finishing:\n\
+            ## Events — YOU MUST use the `emit` CLI tool before finishing:\n\
             Allowed events for your hat: {publishes}\n\
-            To emit: print a line containing BORING_EMIT <topic> <optional payload>\n\
-            To signal completion: print a line containing {completion}\n\
-            Do NOT wrap these in markdown. Print them as plain text on their own line.\n\
+            To emit an event: `emit <topic> <optional payload>`\n\
+            To signal the run is complete: `emit --complete`\n\
+            \n\
+            ## Other emit commands:\n\
+            - `emit --scratchpad <text>` — append to shared scratchpad\n\
+            - `emit --memory <type> <content>` — save a learning (types: pattern, decision, fix, context)\n\
+            - `emit --task add <title>` — create a task\n\
+            - `emit --task done <id>` — mark a task done\n\
             \n\
             ## Git\n\
             - Before committing, run: git pull --rebase origin $(git branch --show-current)\n\
-            - Commit and push your changes BEFORE printing any BORING_EMIT line.\n\
-            \n\
-            ## Other markers you can use:\n\
-            - BORING_SCRATCHPAD <text> — append to shared scratchpad\n\
-            - BORING_MEMORY <type> <content> — save a learning (types: pattern, decision, fix, context)\n\
-            - BORING_TASK add <title> — create a task\n\
-            - BORING_TASK done <id> — mark a task done",
+            - Commit and push your changes BEFORE calling `emit`.",
             publishes = hat.publishes.join(", "),
-            completion = completion_promise,
         ));
 
         // Prompt file (task description, loaded once at run start)

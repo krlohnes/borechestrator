@@ -166,33 +166,49 @@ async fn main() -> anyhow::Result<()> {
         .await
         .context("failed to sync workspace back to S3")?;
 
-    // ── Phase 6: Publish events to NATS ─────────────────────────
+    // ── Phase 6: Read emit file and publish to NATS ──────────────
+    // The `emit` CLI tool writes JSONL to this file. No more stdout parsing.
+    let emit_file = std::path::PathBuf::from(
+        std::env::var("BORING_EMIT_FILE").unwrap_or_else(|_| "/tmp/boring-emits.jsonl".to_string())
+    );
     let broker = NatsBroker::new(&env.broker_url, &env.broker_stream)
         .await
         .context("failed to connect to NATS")?;
 
     let mut seq = 0u64;
 
-    for line in stdout.lines() {
-        let trimmed = line.trim();
-
-        if let Some(rest) = trimmed.strip_prefix("BORING_EMIT ") {
-            let mut parts = rest.splitn(2, ' ');
-            if let Some(topic) = parts.next() {
-                let payload = parts.next().unwrap_or("");
-                if !topic.is_empty() {
-                    let event = Event::new(topic, payload, Some(&env.hat_id), &env.run_id, seq);
-                    broker.publish(&env.run_id, &event).await?;
-                    info!(topic = %topic, payload = %payload, "published event");
-                    seq += 1;
+    if emit_file.exists() {
+        let content = tokio::fs::read_to_string(&emit_file).await?;
+        for line in content.lines() {
+            if line.trim().is_empty() { continue; }
+            if let Ok(v) = serde_json::from_str::<serde_json::Value>(line.trim()) {
+                match v.get("type").and_then(|t| t.as_str()) {
+                    Some("event") => {
+                        let topic = v.get("topic").and_then(|t| t.as_str()).unwrap_or("");
+                        let payload = v.get("payload").and_then(|p| p.as_str()).unwrap_or("");
+                        if !topic.is_empty() {
+                            let event = Event::new(topic, payload, Some(&env.hat_id), &env.run_id, seq);
+                            broker.publish(&env.run_id, &event).await?;
+                            info!(topic = %topic, payload = %payload, "published event");
+                            seq += 1;
+                        }
+                    }
+                    Some("complete") => {
+                        let promise = v.get("promise").and_then(|p| p.as_str())
+                            .unwrap_or(&env.completion_promise);
+                        let event = Event::system_completion(&env.run_id, promise, seq);
+                        broker.publish(&env.run_id, &event).await?;
+                        info!("published completion event");
+                        seq += 1;
+                    }
+                    _ => {
+                        info!(line = %line.trim(), "emit recorded");
+                    }
                 }
             }
-        } else if trimmed.contains(&env.completion_promise) {
-            let event = Event::system_completion(&env.run_id, &env.completion_promise, seq);
-            broker.publish(&env.run_id, &event).await?;
-            info!("published completion event");
-            seq += 1;
         }
+    } else {
+        info!("no emit file found — agent did not call `emit`");
     }
 
     // ── Phase 7: Push git changes ───────────────────────────────

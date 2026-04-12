@@ -1,4 +1,4 @@
-# Agent image with boring-agent (plumbing) + Claude Code (AI)
+# Agent image with boring-agent + emit CLI + Claude Code
 # Build: docker build -f Dockerfile.claude-agent -t borechestrator/claude-agent:latest .
 
 FROM rust:1-bookworm AS builder
@@ -14,10 +14,10 @@ RUN apt-get update && apt-get install -y ca-certificates git curl && rm -rf /var
 RUN npm install -g @anthropic-ai/claude-code
 
 COPY --from=builder /build/target/release/boring-agent /usr/local/bin/boring-agent
+COPY --from=builder /build/target/release/emit /usr/local/bin/emit
 
 RUN useradd -m -s /bin/bash agent
 USER agent
 WORKDIR /workspace
 
-# boring-agent handles: git clone, S3 state → .boring/, run command, .boring/ → S3, git push
 ENTRYPOINT ["boring-agent"]

@@ -8,6 +8,10 @@ license.workspace = true
 name = "boring-agent"
 path = "src/main.rs"
 
+[[bin]]
+name = "emit"
+path = "src/bin/emit.rs"
+
 [dependencies]
 boring-proto = { path = "../boring-proto" }
 boring-broker = { path = "../boring-broker" }

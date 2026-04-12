@@ -103,7 +103,13 @@ pub fn parse_output(
         } else if let Some(pos) = trimmed.find("BORING_SCRATCHPAD ") {
             let content = &trimmed[pos + "BORING_SCRATCHPAD ".len()..];
             result.scratchpad_lines.push(content.to_string());
-        } else if !completion_found && trimmed.contains(completion_promise) {
+        } else if !completion_found && {
+            // Completion promise must be the entire line (with optional markdown/whitespace).
+            // This prevents false positives from lines like "When done, print LOOP_COMPLETE".
+            let stripped = trimmed
+                .trim_matches(|c: char| c == '*' || c == '`' || c == '_' || c == '#' || c == '-' || c.is_whitespace());
+            stripped == completion_promise
+        } {
             completion_found = true;
             result.events.push(Event::system_completion(run_id, completion_promise, seq));
             seq += 1;
