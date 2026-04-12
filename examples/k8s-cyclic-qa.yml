@@ -1,0 +1,77 @@
+# Cyclic QA on K8s: implement → review → reject → fix → review → approve
+#
+# Tests cyclic event pattern with real K8s Jobs and Claude in full agent mode.
+#
+# Usage:
+#   cargo run -p boring-cli -- run -c examples/k8s-cyclic-qa.yml --mode k8s \
+#     -p "Implement towers of hanoi in Python. Write it to hanoi.py."
+
+event_loop:
+  starting_event: implement.start
+  completion_promise: LOOP_COMPLETE
+  max_iterations: 10
+  max_runtime_seconds: 3600
+
+runtime:
+  mode: k8s
+  namespace: default
+  default_image: borechestrator/claude-agent:latest
+
+cli:
+  backend: claude
+
+broker:
+  url: nats://127.0.0.1:4222
+  stream: BORING
+  pod_url: nats://host.docker.internal:4222
+
+store:
+  endpoint: http://host.docker.internal:9000
+  bucket: borechestrator
+  prefix: cyclic-qa
+  region: us-east-1
+
+git:
+  repo: https://github.com/krlohnes/boring-bookmark-demo.git
+  base_branch: main
+  branch_strategy: shared
+  credentials:
+    from_secret: github-token
+
+hats:
+  implementer:
+    name: Implementer
+    description: "Writes or fixes the code"
+    triggers: ["implement.start", "review.rejected"]
+    publishes: ["review.ready"]
+    default_publishes: review.ready
+    secret_mounts:
+      - from_secret: claude-credentials
+        mount_path: /home/agent/.claude/.credentials.json
+    instructions: |
+      Write or fix the code described in the task.
+      If this is a review.rejected event, read the feedback in the event payload and fix the issues.
+      Write the code to a file in the current directory.
+      Commit and push your changes.
+
+  qa:
+    name: QA Reviewer
+    description: "Reviews code with specific contrived requirements"
+    triggers: ["review.ready"]
+    publishes: ["review.rejected"]
+    secret_mounts:
+      - from_secret: claude-credentials
+        mount_path: /home/agent/.claude/.credentials.json
+    instructions: |
+      Review the implementation. You have TWO specific requirements:
+
+      1. The solution MUST be iterative (use a stack, no recursion). If it uses recursion, reject.
+      2. The solution MUST print "Total moves: N" at the end where N is the count.
+
+      Read the code file in the current directory. Check both requirements.
+
+      If EITHER requirement is not met, run:
+        emit review.rejected "specific feedback about what failed"
+
+      If BOTH requirements are met, run:
+        emit --complete

@@ -1,0 +1,48 @@
+# Cyclic QA: implementer writes code, QA rejects with specific feedback, loop until approved.
+#
+# Tests the cyclic event pattern: implementer → qa → implementer → qa → ... → complete
+#
+# Usage:
+#   cargo run -p boring-cli -- run -c examples/cyclic-qa.yml --mode local \
+#     -p "Implement towers of hanoi in Python"
+
+event_loop:
+  starting_event: implement.start
+  completion_promise: LOOP_COMPLETE
+  max_iterations: 10
+  max_runtime_seconds: 600
+
+cli:
+  backend: claude
+
+hats:
+  implementer:
+    name: Implementer
+    description: "Writes or fixes the code"
+    triggers: ["implement.start", "review.rejected"]
+    publishes: ["review.ready"]
+    default_publishes: review.ready
+    instructions: |
+      Write or fix the code described in the task.
+      If this is a review.rejected event, read the feedback and fix the issues.
+      Write the code to a file in the current directory.
+      When done, run: emit review.ready "implementation ready"
+
+  qa:
+    name: QA Reviewer
+    description: "Reviews code with specific requirements"
+    triggers: ["review.ready"]
+    publishes: ["review.rejected"]
+    instructions: |
+      Review the implementation. You have TWO specific requirements:
+
+      1. The solution MUST be iterative (no recursion allowed). If it uses recursion, reject.
+      2. The solution MUST print the total move count at the end.
+
+      Read the code file. Check both requirements.
+
+      If EITHER requirement is not met:
+        Run: emit review.rejected "specific feedback about what's wrong"
+
+      If BOTH requirements are met:
+        Run: emit --complete
