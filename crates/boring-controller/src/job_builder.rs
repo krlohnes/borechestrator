@@ -10,6 +10,13 @@ pub struct JobBuilder {
     guardrails: Vec<String>,
     prompt_file_content: Option<String>,
     backend_command: Option<String>,
+    broker_url: Option<String>,
+    broker_stream: Option<String>,
+    store_endpoint: Option<String>,
+    store_bucket: Option<String>,
+    store_prefix: Option<String>,
+    store_access_key: Option<String>,
+    store_secret_key: Option<String>,
     git_repo: Option<String>,
     git_base_branch: Option<String>,
     git_branch_strategy: Option<String>,
@@ -32,6 +39,21 @@ impl JobBuilder {
 
         let backend_command = config.cli.as_ref().map(|c| c.backend_command());
 
+        let (broker_url, broker_stream) = config.broker.as_ref()
+            .map(|b| (Some(b.url.clone()), b.stream.clone()))
+            .unwrap_or((None, None));
+
+        let (store_endpoint, store_bucket, store_prefix, store_access_key, store_secret_key) =
+            config.store.as_ref()
+                .map(|s| (
+                    Some(s.endpoint.clone()),
+                    Some(s.bucket.clone()),
+                    s.prefix.clone(),
+                    None, // access keys come from secrets, not config
+                    None,
+                ))
+                .unwrap_or((None, None, None, None, None));
+
         let (git_repo, git_base_branch, git_branch_strategy, git_credentials_secret) =
             if let Some(ref git) = config.git {
                 (
@@ -51,6 +73,13 @@ impl JobBuilder {
             guardrails,
             prompt_file_content,
             backend_command,
+            broker_url,
+            broker_stream,
+            store_endpoint,
+            store_bucket,
+            store_prefix,
+            store_access_key,
+            store_secret_key,
             git_repo,
             git_base_branch,
             git_branch_strategy,
@@ -158,6 +187,23 @@ impl JobBuilder {
 
         if let Some(content) = scratchpad {
             env.insert("BORING_SCRATCHPAD_CONTENT".to_string(), content.to_string());
+        }
+
+        // Broker/store config for boring-agent inside containers
+        if let Some(ref url) = self.broker_url {
+            env.insert("BORING_BROKER_URL".to_string(), url.clone());
+        }
+        if let Some(ref stream) = self.broker_stream {
+            env.insert("BORING_BROKER_STREAM".to_string(), stream.clone());
+        }
+        if let Some(ref endpoint) = self.store_endpoint {
+            env.insert("BORING_STORE_ENDPOINT".to_string(), endpoint.clone());
+        }
+        if let Some(ref bucket) = self.store_bucket {
+            env.insert("BORING_STORE_BUCKET".to_string(), bucket.clone());
+        }
+        if let Some(ref prefix) = self.store_prefix {
+            env.insert("BORING_STORE_PREFIX".to_string(), prefix.clone());
         }
 
         // Resolve hat-specific env vars (including from_secret)

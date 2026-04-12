@@ -1,10 +1,11 @@
-# Contract-First Fullstack on K8s
+# Contract-First Fullstack on K8s — with git + S3 persistence
 #
 # Prerequisites:
 #   docker build -f Dockerfile.claude-agent -t borechestrator/claude-agent:latest .
 #   kubectl create secret generic claude-credentials \
 #     --from-file=.credentials.json=$HOME/.claude/.credentials.json
-#   ./scripts/dev-up.sh  # NATS on localhost
+#   kubectl create secret generic github-token --from-file=token=$HOME/.boring/secrets/github-token
+#   ./scripts/dev-up.sh  # NATS + RustFS on localhost
 #
 # Usage:
 #   cargo run -p boring-cli -- run -c examples/k8s-contract-first.yml --mode k8s \
@@ -24,11 +25,25 @@ runtime:
 cli:
   backend: claude
 
+store:
+  endpoint: http://host.docker.internal:9000
+  bucket: borechestrator
+  prefix: bookmark-demo
+  region: us-east-1
+
+git:
+  repo: https://github.com/krlohnes/boring-bookmark-demo.git
+  base_branch: main
+  branch_strategy: shared
+  credentials:
+    from_secret: github-token
+
 core:
   guardrails:
     - "The API contract in .boring/scratchpad/shared.md is the source of truth."
     - "Frontend and backend MUST NOT depend on each other — only the contract."
     - "Read .boring/prompt.md for requirements."
+    - "Always emit the required BORING_EMIT event when you are done."
 
 hats:
   spec_writer:
