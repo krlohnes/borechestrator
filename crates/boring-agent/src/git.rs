@@ -60,16 +60,21 @@ pub async fn clone_and_checkout(
     let hooks_dir = target_dir.join(".git/hooks");
     let hook = r#"#!/bin/sh
 BRANCH=$(git branch --show-current)
-echo "pre-push: rebasing onto origin/$BRANCH"
-git fetch origin "$BRANCH" 2>/dev/null
-if ! git rebase "origin/$BRANCH" 2>/dev/null; then
-    echo ""
-    echo "ERROR: Rebase conflicts detected."
-    echo "Fix the conflicts in the files listed above, then run:"
-    echo "  git add <fixed files>"
-    echo "  git rebase --continue"
-    echo "  git push origin $BRANCH"
-    exit 1
+# Only rebase if the branch already exists on the remote
+if git ls-remote --exit-code origin "$BRANCH" >/dev/null 2>&1; then
+    echo "pre-push: rebasing onto origin/$BRANCH"
+    git fetch origin "$BRANCH" 2>/dev/null
+    if ! git rebase "origin/$BRANCH"; then
+        echo ""
+        echo "ERROR: Rebase conflicts detected."
+        echo "Fix the conflicts in the files listed above, then run:"
+        echo "  git add <fixed files>"
+        echo "  git rebase --continue"
+        echo "  git push origin $BRANCH"
+        exit 1
+    fi
+else
+    echo "pre-push: new branch, no rebase needed"
 fi
 "#;
     tokio::fs::write(hooks_dir.join("pre-push"), &hook).await.ok();
