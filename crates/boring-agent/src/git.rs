@@ -108,9 +108,9 @@ fi
 
 /// Push the work branch to the remote.
 pub async fn push(target_dir: &Path, branch: &str) -> anyhow::Result<bool> {
-    // Check if there are any commits beyond the base
+    // Check if there are any commits beyond what's on the remote
     let output = Command::new("git")
-        .args(["log", "--oneline", &format!("origin/HEAD..{}", branch)])
+        .args(["log", "--oneline", &format!("origin/{}..{}", branch, branch)])
         .current_dir(target_dir)
         .output()
         .await
