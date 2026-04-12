@@ -199,7 +199,7 @@ kubectl logs <pod-name>
 
 There's also `boring status` and `boring logs` if you want. OTel tracing behind `--features otel`. Structured JSON logs to stdout. Prometheus metrics.
 
-There is no TUI. There is no web UI. There is no dashboard. You have `kubectl`. It's fine.
+There is no TUI. There is no web UI. There is no dashboard. You have `kubectl`. It's fine. If you want a TUI, there's [k9s](https://k9scli.io/).
 
 ## Architecture
 
