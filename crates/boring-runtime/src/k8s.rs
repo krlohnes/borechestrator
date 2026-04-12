@@ -93,7 +93,7 @@ impl Runtime for K8sRuntime {
             },
             spec: Some(k8s_openapi::api::batch::v1::JobSpec {
                 backoff_limit: Some(0),
-                active_deadline_seconds: Some(600),
+                active_deadline_seconds: Some(1800),
                 template: PodTemplateSpec {
                     metadata: Some(ObjectMeta {
                         labels: Some(
