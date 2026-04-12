@@ -110,9 +110,12 @@ impl JobBuilder {
             You have full tool access — you can read files, write files, and run shell commands.\n\
             \n\
             ## Workspace\n\
+            Your current working directory is a git repository. Write all code files here.\n\
+            Do NOT change directories. Create files in the current directory or subdirectories.\n\
+            \n\
             - .boring/prompt.md — your task description\n\
             - .boring/event.json — the current event that triggered you\n\
-            - .boring/scratchpad/ — shared notes between all hats\n\
+            - .boring/scratchpad/ — shared notes between all hats (read the API contract here)\n\
             - .boring/memories.md — learnings from previous iterations\n\
             - .boring/tasks.md — task list\n\
             \n\
