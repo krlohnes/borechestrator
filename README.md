@@ -33,7 +33,7 @@ spec_writer (K8s Job) → drafted API contract → S3
 
 Code: [krlohnes/boring-bookmark-demo](https://github.com/krlohnes/boring-bookmark-demo).
 
-Cyclic patterns work too. A QA hat rejected a towers of hanoi for using recursion. The implementer rewrote it. QA reviewed again. Events bounced between hats until QA was satisfied. No supervisor.
+Cyclic patterns work too. A QA hat rejected a [towers of hanoi](https://github.com/krlohnes/boring-bookmark-demo/blob/bore/run-6954d271/main/hanoi.py) for using recursion. The implementer rewrote it. QA reviewed again. Events bounced between hats until QA was satisfied. No supervisor.
 
 ## Config
 
