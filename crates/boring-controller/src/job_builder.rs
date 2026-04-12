@@ -107,29 +107,33 @@ impl JobBuilder {
         parts.push(format!(
             "# System\n\n\
             You are running inside borechestrator, an AI agent orchestrator.\n\
+            You have full tool access — you can read files, write files, and run shell commands.\n\
             \n\
             ## Workspace\n\
-            - Your task description is in .boring/prompt.md\n\
-            - The current event context is in .boring/event.json\n\
-            - Shared state (API contracts, notes) is in .boring/scratchpad/\n\
-            - Memories from previous iterations are in .boring/memories.md\n\
-            - Task list is in .boring/tasks.md\n\
+            - .boring/prompt.md — your task description\n\
+            - .boring/event.json — the current event that triggered you\n\
+            - .boring/scratchpad/ — shared notes between all hats\n\
+            - .boring/memories.md — learnings from previous iterations\n\
+            - .boring/tasks.md — task list\n\
             \n\
-            ## Events — YOU MUST use the `emit` CLI tool before finishing:\n\
-            Allowed events for your hat: {publishes}\n\
-            To emit an event: `emit <topic> <optional payload>`\n\
-            To signal the run is complete: `emit --complete`\n\
+            ## CRITICAL: You MUST run the `emit` command before you finish.\n\
+            `emit` is a real CLI tool installed at /usr/local/bin/emit.\n\
+            Your allowed events: {publishes}\n\
             \n\
-            ## Other emit commands:\n\
-            - `emit --scratchpad <text>` — append to shared scratchpad\n\
-            - `emit --memory <type> <content>` — save a learning (types: pattern, decision, fix, context)\n\
-            - `emit --task add <title>` — create a task\n\
-            - `emit --task done <id>` — mark a task done\n\
+            Run one of these shell commands before finishing:\n\
+            ```\n\
+            emit {first_publish} \"description of what you did\"\n\
+            ```\n\
+            Or if the entire orchestration is done:\n\
+            ```\n\
+            emit --complete\n\
+            ```\n\
             \n\
             ## Git\n\
-            - Before committing, run: git pull --rebase origin $(git branch --show-current)\n\
-            - Commit and push your changes BEFORE calling `emit`.",
+            Before committing: `git pull --rebase origin $(git branch --show-current)`\n\
+            Commit and push BEFORE running `emit`.",
             publishes = hat.publishes.join(", "),
+            first_publish = hat.publishes.first().map(|s| s.as_str()).unwrap_or("event.done"),
         ));
 
         // Prompt file (task description, loaded once at run start)
