@@ -94,8 +94,6 @@ hats:
       Commit and push.
 ```
 
-You don't need a `command:` field. `cli.backend` handles it. You don't need stdout markers. The `emit` CLI handles events. You don't need to manage `.boring/` state. `boring-agent` does it.
-
 ## Events
 
 Agents call the `emit` CLI tool. It's in the container.
