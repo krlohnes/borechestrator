@@ -24,7 +24,15 @@ impl DockerRuntime {
             network: None,
         }
     }
+}
 
+impl Default for DockerRuntime {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl DockerRuntime {
     /// Set the Docker network to attach containers to.
     pub fn with_network(mut self, network: &str) -> Self {
         self.network = Some(network.to_string());

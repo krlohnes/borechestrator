@@ -1,4 +1,4 @@
-use boring_store::{LocalStore, Store};
+use boring_store::LocalStore;
 use std::process::ExitCode;
 
 pub async fn run(run_id: Option<&str>) -> ExitCode {

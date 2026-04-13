@@ -43,7 +43,7 @@ pub fn parse_output(
         if let Some(pos) = trimmed.find("BORING_EMIT ") {
             let rest = &trimmed[pos + "BORING_EMIT ".len()..];
             let rest = rest
-                .trim_end_matches(|c: char| c == '*' || c == '`' || c == '_')
+                .trim_end_matches(['*', '`', '_'])
                 .trim();
             let mut parts = rest.splitn(2, ' ');
             if let Some(topic) = parts.next() {
@@ -51,7 +51,7 @@ pub fn parse_output(
                 let payload = parts
                     .next()
                     .unwrap_or("")
-                    .trim_end_matches(|c: char| c == '*' || c == '`');
+                    .trim_end_matches(['*', '`']);
                 if !topic.is_empty() {
                     result
                         .events
@@ -61,7 +61,7 @@ pub fn parse_output(
             }
         } else if let Some(pos) = trimmed.find("BORING_MEMORY ") {
             let rest = &trimmed[pos + "BORING_MEMORY ".len()..];
-            let rest = rest.trim_end_matches(|c: char| c == '*' || c == '`').trim();
+            let rest = rest.trim_end_matches(['*', '`']).trim();
             let mut parts = rest.splitn(2, ' ');
             if let Some(memory_type) = parts.next() {
                 let content = parts.next().unwrap_or("");
@@ -107,14 +107,14 @@ pub fn parse_output(
             let question = &trimmed[pos + "BORING_HUMAN ".len()..];
             result.human_actions.push(HumanAction::Ask(
                 question
-                    .trim_end_matches(|c: char| c == '*' || c == '`')
+                    .trim_end_matches(['*', '`'])
                     .to_string(),
             ));
         } else if let Some(pos) = trimmed.find("BORING_NOTIFY ") {
             let message = &trimmed[pos + "BORING_NOTIFY ".len()..];
             result.human_actions.push(HumanAction::Notify(
                 message
-                    .trim_end_matches(|c: char| c == '*' || c == '`')
+                    .trim_end_matches(['*', '`'])
                     .to_string(),
             ));
         } else if let Some(pos) = trimmed.find("BORING_SCRATCHPAD ") {

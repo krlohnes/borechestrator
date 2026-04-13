@@ -4,8 +4,7 @@ mod workspace;
 use anyhow::Context;
 use boring_broker::{Broker, NatsBroker};
 use boring_proto::event::Event;
-use boring_store::{S3Store, Store};
-use std::path::PathBuf;
+use boring_store::S3Store;
 use std::process::Stdio;
 use tokio::process::Command;
 use tracing::{error, info};
@@ -160,7 +159,7 @@ async fn main() -> anyhow::Result<()> {
         .await
         .context("failed to execute command")?;
 
-    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let _stdout = String::from_utf8_lossy(&output.stdout).to_string();
 
     if !output.status.success() {
         error!(exit_code = output.status.code(), "command failed");

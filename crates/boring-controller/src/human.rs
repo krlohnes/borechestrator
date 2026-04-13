@@ -1,5 +1,4 @@
 use async_trait::async_trait;
-use boring_proto::event::Event;
 
 /// Trait for human-in-the-loop interaction.
 /// Implementations can use stdin, Slack, Telegram, webhooks, etc.

@@ -9,7 +9,6 @@ use std::collections::{HashMap, HashSet};
 use crate::backpressure;
 use crate::event_router::EventRouter;
 use crate::job_builder::JobBuilder;
-use crate::metrics::Metrics;
 use crate::output_parser;
 
 /// Result of a reconciliation run.

@@ -24,7 +24,7 @@ pub fn nats_subscribe_all(run_id: &str) -> String {
 pub struct NatsBroker {
     client: async_nats::Client,
     jetstream: async_nats::jetstream::Context,
-    stream_name: String,
+    _stream_name: String,
 }
 
 impl NatsBroker {
@@ -49,7 +49,7 @@ impl NatsBroker {
         Ok(Self {
             client,
             jetstream,
-            stream_name: stream_name.to_string(),
+            _stream_name: stream_name.to_string(),
         })
     }
 }

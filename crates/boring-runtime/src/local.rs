@@ -12,6 +12,12 @@ pub struct LocalRuntime {
     next_id: Arc<Mutex<u64>>,
 }
 
+impl Default for LocalRuntime {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl LocalRuntime {
     pub fn new() -> Self {
         Self {

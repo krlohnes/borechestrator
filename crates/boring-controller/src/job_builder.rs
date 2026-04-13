@@ -15,8 +15,6 @@ pub struct JobBuilder {
     store_endpoint: Option<String>,
     store_bucket: Option<String>,
     store_prefix: Option<String>,
-    store_access_key: Option<String>,
-    store_secret_key: Option<String>,
     git_repo: Option<String>,
     git_base_branch: Option<String>,
     git_branch_strategy: Option<String>,
@@ -51,20 +49,11 @@ impl JobBuilder {
             })
             .unwrap_or((None, None));
 
-        let (store_endpoint, store_bucket, store_prefix, store_access_key, store_secret_key) =
-            config
-                .store
-                .as_ref()
-                .map(|s| {
-                    (
-                        Some(s.endpoint.clone()),
-                        Some(s.bucket.clone()),
-                        s.prefix.clone(),
-                        None, // access keys come from secrets, not config
-                        None,
-                    )
-                })
-                .unwrap_or((None, None, None, None, None));
+        let (store_endpoint, store_bucket, store_prefix) = config
+            .store
+            .as_ref()
+            .map(|s| (Some(s.endpoint.clone()), Some(s.bucket.clone()), s.prefix.clone()))
+                .unwrap_or((None, None, None));
 
         let (git_repo, git_base_branch, git_branch_strategy, git_credentials_secret) =
             if let Some(ref git) = config.git {
@@ -90,8 +79,6 @@ impl JobBuilder {
             store_endpoint,
             store_bucket,
             store_prefix,
-            store_access_key,
-            store_secret_key,
             git_repo,
             git_base_branch,
             git_branch_strategy,
@@ -106,7 +93,7 @@ impl JobBuilder {
         guardrails: &[String],
         scratchpad: Option<&str>,
         prompt_file: Option<&str>,
-        completion_promise: &str,
+        _completion_promise: &str,
     ) -> String {
         let mut parts = Vec::new();
 
