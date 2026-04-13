@@ -109,19 +109,12 @@ Topic wildcards are NATS-compatible. `work.*` matches `work.start`. `work.>` mat
 
 ## Running it
 
-Locally, if you must:
-
-```bash
-./scripts/dev-up.sh
-boring run -c borechestrator.yml
-```
-
-On Kubernetes, where this thing actually belongs:
-
 ```bash
 ./scripts/k8s-up.sh
 boring run -c borechestrator.yml --mode k8s
 ```
+
+There's a local mode. Don't use it. Just use [Ralph](https://github.com/mikeyobrien/ralph-orchestrator).
 
 There are 12 presets if writing YAML from scratch sounds like too much excitement.
 
