@@ -42,16 +42,11 @@ pub fn parse_output(
         // the marker appears, just that it's there.
         if let Some(pos) = trimmed.find("BORING_EMIT ") {
             let rest = &trimmed[pos + "BORING_EMIT ".len()..];
-            let rest = rest
-                .trim_end_matches(['*', '`', '_'])
-                .trim();
+            let rest = rest.trim_end_matches(['*', '`', '_']).trim();
             let mut parts = rest.splitn(2, ' ');
             if let Some(topic) = parts.next() {
                 let topic = topic.trim_matches(|c: char| c == '*' || c == '`' || c == '_');
-                let payload = parts
-                    .next()
-                    .unwrap_or("")
-                    .trim_end_matches(['*', '`']);
+                let payload = parts.next().unwrap_or("").trim_end_matches(['*', '`']);
                 if !topic.is_empty() {
                     result
                         .events
@@ -106,16 +101,12 @@ pub fn parse_output(
         } else if let Some(pos) = trimmed.find("BORING_HUMAN ") {
             let question = &trimmed[pos + "BORING_HUMAN ".len()..];
             result.human_actions.push(HumanAction::Ask(
-                question
-                    .trim_end_matches(['*', '`'])
-                    .to_string(),
+                question.trim_end_matches(['*', '`']).to_string(),
             ));
         } else if let Some(pos) = trimmed.find("BORING_NOTIFY ") {
             let message = &trimmed[pos + "BORING_NOTIFY ".len()..];
             result.human_actions.push(HumanAction::Notify(
-                message
-                    .trim_end_matches(['*', '`'])
-                    .to_string(),
+                message.trim_end_matches(['*', '`']).to_string(),
             ));
         } else if let Some(pos) = trimmed.find("BORING_SCRATCHPAD ") {
             let content = &trimmed[pos + "BORING_SCRATCHPAD ".len()..];

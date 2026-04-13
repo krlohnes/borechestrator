@@ -52,8 +52,14 @@ impl JobBuilder {
         let (store_endpoint, store_bucket, store_prefix) = config
             .store
             .as_ref()
-            .map(|s| (Some(s.endpoint.clone()), Some(s.bucket.clone()), s.prefix.clone()))
-                .unwrap_or((None, None, None));
+            .map(|s| {
+                (
+                    Some(s.endpoint.clone()),
+                    Some(s.bucket.clone()),
+                    s.prefix.clone(),
+                )
+            })
+            .unwrap_or((None, None, None));
 
         let (git_repo, git_base_branch, git_branch_strategy, git_credentials_secret) =
             if let Some(ref git) = config.git {
