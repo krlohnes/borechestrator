@@ -1,5 +1,5 @@
-use std::process::ExitCode;
 use boring_store::{LocalStore, Store};
+use std::process::ExitCode;
 
 pub async fn run(run_id: &str, hat: Option<&str>) -> ExitCode {
     let store_dir = std::env::current_dir().unwrap().join(".boring");

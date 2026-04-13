@@ -49,7 +49,10 @@ async fn test_wildcard_subscription_filters() {
     assert_eq!(received.topic, "work.start");
 
     let second = timeout(Duration::from_millis(500), sub.next()).await;
-    assert!(second.is_err(), "should not have received non-matching event");
+    assert!(
+        second.is_err(),
+        "should not have received non-matching event"
+    );
 }
 
 #[tokio::test]

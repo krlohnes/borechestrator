@@ -1,6 +1,6 @@
+use async_trait::async_trait;
 use std::collections::HashMap;
 use std::sync::Arc;
-use async_trait::async_trait;
 use tokio::sync::Mutex;
 
 use boring_broker::traits::{Broker, Subscription};
@@ -191,7 +191,11 @@ impl Runtime for FakeRuntime {
         // Extract hat_id: handle id is "{run_id}-{hat_id}" where run_id is "run-{uuid}"
         // So format is "run-XXXX-hat_id"
         let parts: Vec<&str> = handle.id.splitn(3, '-').collect();
-        let hat_id = if parts.len() >= 3 { parts[2] } else { &handle.id };
+        let hat_id = if parts.len() >= 3 {
+            parts[2]
+        } else {
+            &handle.id
+        };
 
         let response = self.get_response(hat_id);
         match response {

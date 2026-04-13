@@ -8,7 +8,7 @@ use boring_store::{S3Store, Store};
 use std::path::PathBuf;
 use std::process::Stdio;
 use tokio::process::Command;
-use tracing::{info, error};
+use tracing::{error, info};
 
 struct AgentEnv {
     run_id: String,
@@ -103,9 +103,15 @@ async fn main() -> anyhow::Result<()> {
         };
 
         let target = std::env::temp_dir().join(format!("boring-{}-{}", env.run_id, env.hat_id));
-        git::clone_and_checkout(repo, &env.git_base_branch, &branch, &target, env.git_token.as_deref())
-            .await
-            .context("git clone failed")?;
+        git::clone_and_checkout(
+            repo,
+            &env.git_base_branch,
+            &branch,
+            &target,
+            env.git_token.as_deref(),
+        )
+        .await
+        .context("git clone failed")?;
 
         (target, Some(branch))
     } else {
@@ -131,9 +137,9 @@ async fn main() -> anyhow::Result<()> {
     .context("failed to materialize workspace")?;
 
     // ── Phase 4: Run the agent command ──────────────────────────
-    let command = env.command.unwrap_or_else(|| {
-        "echo \"$BORING_PROMPT\"".to_string()
-    });
+    let command = env
+        .command
+        .unwrap_or_else(|| "echo \"$BORING_PROMPT\"".to_string());
 
     info!(command = %command, "executing agent command");
 
@@ -143,7 +149,10 @@ async fn main() -> anyhow::Result<()> {
         .env("BORING_PROMPT", &env.prompt)
         .env("BORING_EVENT_TOPIC", &env.event_topic)
         .env("BORING_EVENT_PAYLOAD", &env.event_payload)
-        .env("BORING_WORKSPACE", work_dir.join(".boring").to_string_lossy().as_ref())
+        .env(
+            "BORING_WORKSPACE",
+            work_dir.join(".boring").to_string_lossy().as_ref(),
+        )
         .current_dir(&work_dir)
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
@@ -169,7 +178,7 @@ async fn main() -> anyhow::Result<()> {
     // ── Phase 6: Read emit file and publish to NATS ──────────────
     // The `emit` CLI tool writes JSONL to this file. No more stdout parsing.
     let emit_file = std::path::PathBuf::from(
-        std::env::var("BORING_EMIT_FILE").unwrap_or_else(|_| "/tmp/boring-emits.jsonl".to_string())
+        std::env::var("BORING_EMIT_FILE").unwrap_or_else(|_| "/tmp/boring-emits.jsonl".to_string()),
     );
     let broker = NatsBroker::new(&env.broker_url, &env.broker_stream)
         .await
@@ -180,21 +189,26 @@ async fn main() -> anyhow::Result<()> {
     if emit_file.exists() {
         let content = tokio::fs::read_to_string(&emit_file).await?;
         for line in content.lines() {
-            if line.trim().is_empty() { continue; }
+            if line.trim().is_empty() {
+                continue;
+            }
             if let Ok(v) = serde_json::from_str::<serde_json::Value>(line.trim()) {
                 match v.get("type").and_then(|t| t.as_str()) {
                     Some("event") => {
                         let topic = v.get("topic").and_then(|t| t.as_str()).unwrap_or("");
                         let payload = v.get("payload").and_then(|p| p.as_str()).unwrap_or("");
                         if !topic.is_empty() {
-                            let event = Event::new(topic, payload, Some(&env.hat_id), &env.run_id, seq);
+                            let event =
+                                Event::new(topic, payload, Some(&env.hat_id), &env.run_id, seq);
                             broker.publish(&env.run_id, &event).await?;
                             info!(topic = %topic, payload = %payload, "published event");
                             seq += 1;
                         }
                     }
                     Some("complete") => {
-                        let promise = v.get("promise").and_then(|p| p.as_str())
+                        let promise = v
+                            .get("promise")
+                            .and_then(|p| p.as_str())
                             .unwrap_or(&env.completion_promise);
                         let event = Event::system_completion(&env.run_id, promise, seq);
                         broker.publish(&env.run_id, &event).await?;
@@ -240,7 +254,10 @@ async fn main() -> anyhow::Result<()> {
                         error!("git push failed after {} attempts: {}", max_retries, e);
                         break;
                     }
-                    info!(attempt = attempt + 1, "push failed, asking Claude to fix conflicts");
+                    info!(
+                        attempt = attempt + 1,
+                        "push failed, asking Claude to fix conflicts"
+                    );
 
                     // Re-invoke Claude to fix the rebase conflicts
                     let fix_output = Command::new("bash")

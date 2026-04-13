@@ -1,6 +1,6 @@
-use std::collections::HashMap;
 use boring_store::Store;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// Serializable snapshot of the reconciler's state.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -72,8 +72,7 @@ mod tests {
         Checkpoint {
             run_id: "run-abc".to_string(),
             iterations: 5,
-            activations: [("planner".to_string(), 3u32), ("builder".to_string(), 2u32)]
-                .into(),
+            activations: [("planner".to_string(), 3u32), ("builder".to_string(), 2u32)].into(),
             consecutive_failures: 0,
             global_sequence: 10,
             seen_events: vec!["work.start".to_string(), "subtask.ready".to_string()],

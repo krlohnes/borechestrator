@@ -109,7 +109,10 @@ pub fn parse_task_line(line: &str, source: &str) -> Option<TaskAction> {
 
     match action {
         "add" => Some(TaskAction::Add(Task {
-            id: format!("task-{}", uuid::Uuid::new_v4().to_string().split('-').next().unwrap()),
+            id: format!(
+                "task-{}",
+                uuid::Uuid::new_v4().to_string().split('-').next().unwrap()
+            ),
             title: arg.to_string(),
             status: TaskStatus::Pending,
             priority: None,
@@ -137,7 +140,8 @@ mod tests {
 
     #[test]
     fn test_parse_task_add() {
-        let action = parse_task_line("BORING_TASK add Implement user authentication", "planner").unwrap();
+        let action =
+            parse_task_line("BORING_TASK add Implement user authentication", "planner").unwrap();
         match action {
             TaskAction::Add(task) => {
                 assert_eq!(task.title, "Implement user authentication");

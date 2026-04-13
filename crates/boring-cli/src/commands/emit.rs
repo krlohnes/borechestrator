@@ -1,7 +1,7 @@
-use std::process::ExitCode;
-use boring_proto::event::Event;
-use boring_broker::NatsBroker;
 use boring_broker::Broker;
+use boring_broker::NatsBroker;
+use boring_proto::event::Event;
+use std::process::ExitCode;
 
 pub async fn run(run_id: &str, topic: &str, payload: &str) -> ExitCode {
     let broker = match NatsBroker::new("nats://127.0.0.1:4222", "BORING").await {

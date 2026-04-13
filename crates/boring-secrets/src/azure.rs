@@ -1,6 +1,6 @@
 use async_trait::async_trait;
-use azure_security_keyvault::SecretClient;
 use azure_identity::DefaultAzureCredential;
+use azure_security_keyvault::SecretClient;
 
 use crate::traits::SecretProvider;
 

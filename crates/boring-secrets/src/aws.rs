@@ -25,13 +25,7 @@ impl AwsSecretProvider {
 #[async_trait]
 impl SecretProvider for AwsSecretProvider {
     async fn get_secret(&self, name: &str) -> anyhow::Result<Option<String>> {
-        match self
-            .client
-            .get_secret_value()
-            .secret_id(name)
-            .send()
-            .await
-        {
+        match self.client.get_secret_value().secret_id(name).send().await {
             Ok(output) => Ok(output.secret_string),
             Err(e) => {
                 let service_err = e.into_service_error();
@@ -45,13 +39,7 @@ impl SecretProvider for AwsSecretProvider {
     }
 
     async fn get_secret_bytes(&self, name: &str) -> anyhow::Result<Option<Vec<u8>>> {
-        match self
-            .client
-            .get_secret_value()
-            .secret_id(name)
-            .send()
-            .await
-        {
+        match self.client.get_secret_value().secret_id(name).send().await {
             Ok(output) => Ok(output.secret_binary.map(|b| b.into_inner())),
             Err(e) => {
                 let service_err = e.into_service_error();

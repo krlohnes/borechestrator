@@ -1,8 +1,8 @@
-use std::collections::HashMap;
 use boring_proto::config::{BoringConfig, EnvValue, HatConfig};
 use boring_proto::event::Event;
 use boring_runtime::JobSpec;
 use boring_secrets::SecretProvider;
+use std::collections::HashMap;
 
 /// Builds JobSpecs from hat configs, events, and scratchpad state.
 pub struct JobBuilder {
@@ -40,22 +40,30 @@ impl JobBuilder {
         let backend_command = config.cli.as_ref().map(|c| c.backend_command());
 
         // Use pod_url for containers if available, otherwise fall back to url
-        let (broker_url, broker_stream) = config.broker.as_ref()
-            .map(|b| (
-                Some(b.pod_url.as_ref().unwrap_or(&b.url).clone()),
-                b.stream.clone(),
-            ))
+        let (broker_url, broker_stream) = config
+            .broker
+            .as_ref()
+            .map(|b| {
+                (
+                    Some(b.pod_url.as_ref().unwrap_or(&b.url).clone()),
+                    b.stream.clone(),
+                )
+            })
             .unwrap_or((None, None));
 
         let (store_endpoint, store_bucket, store_prefix, store_access_key, store_secret_key) =
-            config.store.as_ref()
-                .map(|s| (
-                    Some(s.endpoint.clone()),
-                    Some(s.bucket.clone()),
-                    s.prefix.clone(),
-                    None, // access keys come from secrets, not config
-                    None,
-                ))
+            config
+                .store
+                .as_ref()
+                .map(|s| {
+                    (
+                        Some(s.endpoint.clone()),
+                        Some(s.bucket.clone()),
+                        s.prefix.clone(),
+                        None, // access keys come from secrets, not config
+                        None,
+                    )
+                })
                 .unwrap_or((None, None, None, None, None));
 
         let (git_repo, git_base_branch, git_branch_strategy, git_credentials_secret) =
@@ -136,7 +144,11 @@ impl JobBuilder {
             Before committing: `git pull --rebase origin $(git branch --show-current)`\n\
             Commit and push BEFORE running `emit`.",
             publishes = hat.publishes.join(", "),
-            first_publish = hat.publishes.first().map(|s| s.as_str()).unwrap_or("event.done"),
+            first_publish = hat
+                .publishes
+                .first()
+                .map(|s| s.as_str())
+                .unwrap_or("event.done"),
         ));
 
         // Prompt file (task description, loaded once at run start)
@@ -211,26 +223,48 @@ impl JobBuilder {
         scratchpad: Option<&str>,
         secrets: &dyn SecretProvider,
     ) -> anyhow::Result<JobSpec> {
-        let prompt = Self::assemble_prompt(hat, event, &self.guardrails, scratchpad, self.prompt_file_content.as_deref(), &self.completion_promise);
+        let prompt = Self::assemble_prompt(
+            hat,
+            event,
+            &self.guardrails,
+            scratchpad,
+            self.prompt_file_content.as_deref(),
+            &self.completion_promise,
+        );
 
         let mut env = HashMap::new();
 
         // Ensure emit CLI is on PATH. Look for it next to the boring-cli binary,
         // in /usr/local/bin (containers), or ~/.local/bin (local dev).
         let emit_dirs = [
-            std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.to_string_lossy().to_string())),
+            std::env::current_exe()
+                .ok()
+                .and_then(|p| p.parent().map(|d| d.to_string_lossy().to_string())),
             Some("/usr/local/bin".to_string()),
-            std::env::var("HOME").ok().map(|h| format!("{}/.local/bin", h)),
+            std::env::var("HOME")
+                .ok()
+                .map(|h| format!("{}/.local/bin", h)),
         ];
-        let extra_path = emit_dirs.iter().flatten().cloned().collect::<Vec<_>>().join(":");
+        let extra_path = emit_dirs
+            .iter()
+            .flatten()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join(":");
         let current_path = std::env::var("PATH").unwrap_or_default();
-        env.insert("PATH".to_string(), format!("{}:{}", extra_path, current_path));
+        env.insert(
+            "PATH".to_string(),
+            format!("{}:{}", extra_path, current_path),
+        );
 
         env.insert("BORING_RUN_ID".to_string(), event.run_id.clone());
         env.insert("BORING_HAT_ID".to_string(), hat_id.to_string());
         env.insert("BORING_EVENT_TOPIC".to_string(), event.topic.clone());
         env.insert("BORING_EVENT_PAYLOAD".to_string(), event.payload.clone());
-        env.insert("BORING_COMPLETION_PROMISE".to_string(), self.completion_promise.clone());
+        env.insert(
+            "BORING_COMPLETION_PROMISE".to_string(),
+            self.completion_promise.clone(),
+        );
         env.insert("BORING_PROMPT".to_string(), prompt.clone());
 
         // Default event to emit if the agent doesn't call emit itself
@@ -241,10 +275,13 @@ impl JobBuilder {
         }
 
         // Write prompt to a temp file so backends can read it without shell quoting issues
-        let prompt_file = std::env::temp_dir()
-            .join(format!("boring-prompt-{}-{}.md", event.run_id, hat_id));
+        let prompt_file =
+            std::env::temp_dir().join(format!("boring-prompt-{}-{}.md", event.run_id, hat_id));
         std::fs::write(&prompt_file, &prompt).ok();
-        env.insert("BORING_PROMPT_FILE".to_string(), prompt_file.to_string_lossy().to_string());
+        env.insert(
+            "BORING_PROMPT_FILE".to_string(),
+            prompt_file.to_string_lossy().to_string(),
+        );
 
         if let Some(content) = scratchpad {
             env.insert("BORING_SCRATCHPAD_CONTENT".to_string(), content.to_string());
@@ -324,11 +361,16 @@ mod tests {
 
     impl TestSecrets {
         fn empty() -> Self {
-            Self { secrets: HashMap::new() }
+            Self {
+                secrets: HashMap::new(),
+            }
         }
 
         fn with(pairs: Vec<(&str, &str)>) -> Self {
-            let secrets = pairs.into_iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
+            let secrets = pairs
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect();
             Self { secrets }
         }
     }
@@ -341,7 +383,8 @@ mod tests {
     }
 
     fn minimal_config() -> BoringConfig {
-        BoringConfig::from_yaml(r#"
+        BoringConfig::from_yaml(
+            r#"
 event_loop:
   starting_event: work.start
   completion_promise: LOOP_COMPLETE
@@ -352,11 +395,14 @@ hats:
     triggers: ["work.start"]
     publishes: ["work.done"]
     instructions: "Do the work."
-"#).unwrap()
+"#,
+        )
+        .unwrap()
     }
 
     fn config_with_guardrails() -> BoringConfig {
-        BoringConfig::from_yaml(r#"
+        BoringConfig::from_yaml(
+            r#"
 event_loop:
   starting_event: work.start
   completion_promise: LOOP_COMPLETE
@@ -371,7 +417,9 @@ hats:
     triggers: ["work.start"]
     publishes: ["work.done"]
     instructions: "Do the work."
-"#).unwrap()
+"#,
+        )
+        .unwrap()
     }
 
     fn test_event() -> Event {
@@ -382,7 +430,8 @@ hats:
     fn test_assemble_prompt_includes_instructions() {
         let config = minimal_config();
         let hat = &config.hats["worker"];
-        let prompt = JobBuilder::assemble_prompt(hat, &test_event(), &[], None, None, "LOOP_COMPLETE");
+        let prompt =
+            JobBuilder::assemble_prompt(hat, &test_event(), &[], None, None, "LOOP_COMPLETE");
         assert!(prompt.contains("Do the work."));
     }
 
@@ -390,7 +439,8 @@ hats:
     fn test_assemble_prompt_includes_event_context() {
         let config = minimal_config();
         let hat = &config.hats["worker"];
-        let prompt = JobBuilder::assemble_prompt(hat, &test_event(), &[], None, None, "LOOP_COMPLETE");
+        let prompt =
+            JobBuilder::assemble_prompt(hat, &test_event(), &[], None, None, "LOOP_COMPLETE");
         assert!(prompt.contains("work.start"));
         assert!(prompt.contains("begin the work"));
     }
@@ -400,7 +450,14 @@ hats:
         let config = config_with_guardrails();
         let hat = &config.hats["worker"];
         let guardrails: Vec<String> = config.core.as_ref().unwrap().guardrails.clone();
-        let prompt = JobBuilder::assemble_prompt(hat, &test_event(), &guardrails, None, None, "LOOP_COMPLETE");
+        let prompt = JobBuilder::assemble_prompt(
+            hat,
+            &test_event(),
+            &guardrails,
+            None,
+            None,
+            "LOOP_COMPLETE",
+        );
         assert!(prompt.contains("Always commit after changes."));
         assert!(prompt.contains("Run tests before emitting done."));
     }
@@ -409,7 +466,14 @@ hats:
     fn test_assemble_prompt_includes_scratchpad() {
         let config = minimal_config();
         let hat = &config.hats["worker"];
-        let prompt = JobBuilder::assemble_prompt(hat, &test_event(), &[], Some("## Progress\n- Step 1 done"), None, "LOOP_COMPLETE");
+        let prompt = JobBuilder::assemble_prompt(
+            hat,
+            &test_event(),
+            &[],
+            Some("## Progress\n- Step 1 done"),
+            None,
+            "LOOP_COMPLETE",
+        );
         assert!(prompt.contains("## Progress"));
         assert!(prompt.contains("- Step 1 done"));
     }
@@ -418,7 +482,8 @@ hats:
     fn test_assemble_prompt_no_scratchpad() {
         let config = minimal_config();
         let hat = &config.hats["worker"];
-        let prompt = JobBuilder::assemble_prompt(hat, &test_event(), &[], None, None, "LOOP_COMPLETE");
+        let prompt =
+            JobBuilder::assemble_prompt(hat, &test_event(), &[], None, None, "LOOP_COMPLETE");
         assert!(!prompt.contains("Scratchpad"));
     }
 
@@ -428,7 +493,10 @@ hats:
         let builder = JobBuilder::new(&config);
         let hat = &config.hats["worker"];
         let secrets = TestSecrets::empty();
-        let spec = builder.build("worker", hat, &test_event(), None, &secrets).await.unwrap();
+        let spec = builder
+            .build("worker", hat, &test_event(), None, &secrets)
+            .await
+            .unwrap();
 
         assert_eq!(spec.env.get("BORING_RUN_ID").unwrap(), "run-test");
         assert_eq!(spec.env.get("BORING_HAT_ID").unwrap(), "worker");
@@ -441,7 +509,10 @@ hats:
         let builder = JobBuilder::new(&config);
         let hat = &config.hats["worker"];
         let secrets = TestSecrets::empty();
-        let spec = builder.build("worker", hat, &test_event(), None, &secrets).await.unwrap();
+        let spec = builder
+            .build("worker", hat, &test_event(), None, &secrets)
+            .await
+            .unwrap();
 
         assert_eq!(spec.hat_id, "worker");
         assert_eq!(spec.run_id, "run-test");
@@ -453,14 +524,21 @@ hats:
         let builder = JobBuilder::new(&config);
         let hat = &config.hats["worker"];
         let secrets = TestSecrets::empty();
-        let spec = builder.build("worker", hat, &test_event(), None, &secrets).await.unwrap();
+        let spec = builder
+            .build("worker", hat, &test_event(), None, &secrets)
+            .await
+            .unwrap();
 
-        assert_eq!(spec.env.get("BORING_COMPLETION_PROMISE").unwrap(), "LOOP_COMPLETE");
+        assert_eq!(
+            spec.env.get("BORING_COMPLETION_PROMISE").unwrap(),
+            "LOOP_COMPLETE"
+        );
     }
 
     #[tokio::test]
     async fn test_build_resolves_literal_env() {
-        let config = BoringConfig::from_yaml(r#"
+        let config = BoringConfig::from_yaml(
+            r#"
 event_loop:
   starting_event: work.start
   completion_promise: LOOP_COMPLETE
@@ -474,12 +552,17 @@ hats:
     env:
       DEBUG: "true"
       VERBOSE: "1"
-"#).unwrap();
+"#,
+        )
+        .unwrap();
 
         let builder = JobBuilder::new(&config);
         let hat = &config.hats["worker"];
         let secrets = TestSecrets::empty();
-        let spec = builder.build("worker", hat, &test_event(), None, &secrets).await.unwrap();
+        let spec = builder
+            .build("worker", hat, &test_event(), None, &secrets)
+            .await
+            .unwrap();
 
         assert_eq!(spec.env.get("DEBUG").unwrap(), "true");
         assert_eq!(spec.env.get("VERBOSE").unwrap(), "1");
@@ -487,7 +570,8 @@ hats:
 
     #[tokio::test]
     async fn test_build_resolves_from_secret() {
-        let config = BoringConfig::from_yaml(r#"
+        let config = BoringConfig::from_yaml(
+            r#"
 event_loop:
   starting_event: work.start
   completion_promise: LOOP_COMPLETE
@@ -501,19 +585,25 @@ hats:
     env:
       ANTHROPIC_API_KEY:
         from_secret: anthropic-api-key
-"#).unwrap();
+"#,
+        )
+        .unwrap();
 
         let builder = JobBuilder::new(&config);
         let hat = &config.hats["worker"];
         let secrets = TestSecrets::with(vec![("anthropic-api-key", "sk-ant-12345")]);
-        let spec = builder.build("worker", hat, &test_event(), None, &secrets).await.unwrap();
+        let spec = builder
+            .build("worker", hat, &test_event(), None, &secrets)
+            .await
+            .unwrap();
 
         assert_eq!(spec.env.get("ANTHROPIC_API_KEY").unwrap(), "sk-ant-12345");
     }
 
     #[tokio::test]
     async fn test_build_fails_on_missing_secret() {
-        let config = BoringConfig::from_yaml(r#"
+        let config = BoringConfig::from_yaml(
+            r#"
 event_loop:
   starting_event: work.start
   completion_promise: LOOP_COMPLETE
@@ -527,12 +617,16 @@ hats:
     env:
       API_KEY:
         from_secret: nonexistent-secret
-"#).unwrap();
+"#,
+        )
+        .unwrap();
 
         let builder = JobBuilder::new(&config);
         let hat = &config.hats["worker"];
         let secrets = TestSecrets::empty();
-        let result = builder.build("worker", hat, &test_event(), None, &secrets).await;
+        let result = builder
+            .build("worker", hat, &test_event(), None, &secrets)
+            .await;
 
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
@@ -541,7 +635,8 @@ hats:
 
     #[tokio::test]
     async fn test_build_mixed_literal_and_secret_env() {
-        let config = BoringConfig::from_yaml(r#"
+        let config = BoringConfig::from_yaml(
+            r#"
 event_loop:
   starting_event: work.start
   completion_promise: LOOP_COMPLETE
@@ -556,12 +651,17 @@ hats:
       DEBUG: "true"
       API_KEY:
         from_secret: my-key
-"#).unwrap();
+"#,
+        )
+        .unwrap();
 
         let builder = JobBuilder::new(&config);
         let hat = &config.hats["worker"];
         let secrets = TestSecrets::with(vec![("my-key", "secret-value")]);
-        let spec = builder.build("worker", hat, &test_event(), None, &secrets).await.unwrap();
+        let spec = builder
+            .build("worker", hat, &test_event(), None, &secrets)
+            .await
+            .unwrap();
 
         assert_eq!(spec.env.get("DEBUG").unwrap(), "true");
         assert_eq!(spec.env.get("API_KEY").unwrap(), "secret-value");

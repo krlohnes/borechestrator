@@ -19,16 +19,17 @@ pub async fn run_gates(gates: &[Gate]) -> Result<(), GateFailure> {
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-            let reason = gate
-                .on_fail
-                .clone()
-                .unwrap_or_else(|| {
-                    if stderr.is_empty() {
-                        format!("gate '{}' failed with exit code {:?}", gate.name, output.status.code())
-                    } else {
-                        stderr
-                    }
-                });
+            let reason = gate.on_fail.clone().unwrap_or_else(|| {
+                if stderr.is_empty() {
+                    format!(
+                        "gate '{}' failed with exit code {:?}",
+                        gate.name,
+                        output.status.code()
+                    )
+                } else {
+                    stderr
+                }
+            });
 
             warn!(gate = %gate.name, reason = %reason, "backpressure gate failed");
             return Err(GateFailure {
@@ -83,13 +84,21 @@ mod tests {
 
     #[tokio::test]
     async fn test_multiple_gates_all_pass() {
-        let gates = vec![gate("step1", "true"), gate("step2", "true"), gate("step3", "true")];
+        let gates = vec![
+            gate("step1", "true"),
+            gate("step2", "true"),
+            gate("step3", "true"),
+        ];
         assert!(run_gates(&gates).await.is_ok());
     }
 
     #[tokio::test]
     async fn test_multiple_gates_second_fails() {
-        let gates = vec![gate("step1", "true"), gate("step2", "false"), gate("step3", "true")];
+        let gates = vec![
+            gate("step1", "true"),
+            gate("step2", "false"),
+            gate("step3", "true"),
+        ];
         let result = run_gates(&gates).await;
         assert!(result.is_err());
         assert_eq!(result.unwrap_err().gate_name, "step2");

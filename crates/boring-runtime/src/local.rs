@@ -1,6 +1,6 @@
+use async_trait::async_trait;
 use std::collections::HashMap;
 use std::sync::Arc;
-use async_trait::async_trait;
 use tokio::process::Command;
 use tokio::sync::Mutex;
 
@@ -128,7 +128,8 @@ mod tests {
     async fn test_job_receives_env_vars() {
         let runtime = LocalRuntime::new();
         let mut spec = simple_spec("echo $BORING_HAT_ID");
-        spec.env.insert("BORING_HAT_ID".to_string(), "planner".to_string());
+        spec.env
+            .insert("BORING_HAT_ID".to_string(), "planner".to_string());
         let handle = runtime.create_job(spec).await.unwrap();
         let status = runtime.wait_job(&handle).await.unwrap();
 

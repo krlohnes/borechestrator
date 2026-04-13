@@ -20,7 +20,12 @@ pub async fn clone_and_checkout(
 
     // Set git user config for commits inside containers
     let _ = Command::new("git")
-        .args(["config", "--global", "user.email", "boring@borechestrator.dev"])
+        .args([
+            "config",
+            "--global",
+            "user.email",
+            "boring@borechestrator.dev",
+        ])
         .status()
         .await;
     let _ = Command::new("git")
@@ -33,7 +38,13 @@ pub async fn clone_and_checkout(
     info!(repo = %repo_url, work_branch = %work_branch, "cloning repository");
 
     let status = Command::new("git")
-        .args(["clone", "--branch", work_branch, "--single-branch", &clone_url])
+        .args([
+            "clone",
+            "--branch",
+            work_branch,
+            "--single-branch",
+            &clone_url,
+        ])
         .arg(target_dir)
         .status()
         .await;
@@ -47,7 +58,13 @@ pub async fn clone_and_checkout(
 
         info!(branch = %base_branch, "work branch not found, cloning base");
         let status = Command::new("git")
-            .args(["clone", "--branch", base_branch, "--single-branch", &clone_url])
+            .args([
+                "clone",
+                "--branch",
+                base_branch,
+                "--single-branch",
+                &clone_url,
+            ])
             .arg(target_dir)
             .status()
             .await
@@ -92,14 +109,17 @@ else
     echo "pre-push: new branch, no rebase needed"
 fi
 "#;
-    tokio::fs::write(hooks_dir.join("pre-push"), &hook).await.ok();
+    tokio::fs::write(hooks_dir.join("pre-push"), &hook)
+        .await
+        .ok();
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
         std::fs::set_permissions(
             hooks_dir.join("pre-push"),
             std::fs::Permissions::from_mode(0o755),
-        ).ok();
+        )
+        .ok();
     }
     info!("installed pre-push hook");
 
@@ -111,7 +131,11 @@ pub async fn push(target_dir: &Path, branch: &str) -> anyhow::Result<bool> {
     // Check if there are any commits to push.
     // If the remote branch doesn't exist, all local commits are new.
     let output = Command::new("git")
-        .args(["log", "--oneline", &format!("origin/{}..{}", branch, branch)])
+        .args([
+            "log",
+            "--oneline",
+            &format!("origin/{}..{}", branch, branch),
+        ])
         .current_dir(target_dir)
         .output()
         .await
@@ -159,7 +183,10 @@ mod tests {
     #[test]
     fn test_inject_token_https() {
         let url = inject_token("https://github.com/org/repo.git", "ghp_abc123");
-        assert_eq!(url, "https://x-access-token:ghp_abc123@github.com/org/repo.git");
+        assert_eq!(
+            url,
+            "https://x-access-token:ghp_abc123@github.com/org/repo.git"
+        );
     }
 
     #[test]

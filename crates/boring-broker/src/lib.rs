@@ -1,5 +1,5 @@
-pub mod traits;
 pub mod nats;
+pub mod traits;
 
-pub use traits::{Broker, Subscription};
 pub use nats::NatsBroker;
+pub use traits::{Broker, Subscription};

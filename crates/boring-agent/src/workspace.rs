@@ -16,7 +16,9 @@ pub async fn materialize(
 ) -> anyhow::Result<()> {
     // Ensure .boring/ is gitignored — state syncs via S3, not git
     let gitignore_path = work_dir.join(".gitignore");
-    let gitignore = tokio::fs::read_to_string(&gitignore_path).await.unwrap_or_default();
+    let gitignore = tokio::fs::read_to_string(&gitignore_path)
+        .await
+        .unwrap_or_default();
     if !gitignore.contains(".boring/") {
         tokio::fs::write(&gitignore_path, format!("{}\n.boring/\n", gitignore.trim())).await?;
     }
@@ -55,7 +57,11 @@ pub async fn materialize(
             &bytes,
         )
         .await?;
-        info!("wrote .boring/scratchpad/{}.md ({} bytes)", hat_id, bytes.len());
+        info!(
+            "wrote .boring/scratchpad/{}.md ({} bytes)",
+            hat_id,
+            bytes.len()
+        );
     }
 
     // Download shared scratchpad
@@ -72,12 +78,13 @@ pub async fn materialize(
         tokio::fs::write(boring_dir.join("memories.json"), &bytes).await?;
 
         // Also render as readable markdown
-        if let Ok(memories) =
-            serde_json::from_slice::<Vec<serde_json::Value>>(&bytes)
-        {
+        if let Ok(memories) = serde_json::from_slice::<Vec<serde_json::Value>>(&bytes) {
             let mut md = String::from("# Memories\n\n");
             for mem in &memories {
-                let mtype = mem.get("memory_type").and_then(|v| v.as_str()).unwrap_or("?");
+                let mtype = mem
+                    .get("memory_type")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("?");
                 let content = mem.get("content").and_then(|v| v.as_str()).unwrap_or("");
                 let source = mem.get("source").and_then(|v| v.as_str()).unwrap_or("?");
                 md.push_str(&format!("- **[{}]** ({}): {}\n", mtype, source, content));
@@ -115,19 +122,13 @@ pub async fn materialize(
     let scratchpad_prefix = format!("{}/scratchpad/", run_id);
     if let Ok(keys) = store.list(&scratchpad_prefix).await {
         for key in keys {
-            let filename = key
-                .strip_prefix(&scratchpad_prefix)
-                .unwrap_or(&key);
+            let filename = key.strip_prefix(&scratchpad_prefix).unwrap_or(&key);
             // Skip ones we already downloaded
             if filename == format!("{}.md", hat_id) || filename == "shared.md" {
                 continue;
             }
             if let Some(bytes) = store.get(&key).await? {
-                tokio::fs::write(
-                    boring_dir.join("scratchpad").join(filename),
-                    &bytes,
-                )
-                .await?;
+                tokio::fs::write(boring_dir.join("scratchpad").join(filename), &bytes).await?;
                 info!("wrote .boring/scratchpad/{}", filename);
             }
         }
@@ -202,9 +203,17 @@ mod tests {
     #[tokio::test]
     async fn test_materialize_creates_boring_dir() {
         let (store, _sd, wd) = setup().await;
-        materialize(&store, "run-1", "planner", wd.path(), "do stuff", "work.start", "go")
-            .await
-            .unwrap();
+        materialize(
+            &store,
+            "run-1",
+            "planner",
+            wd.path(),
+            "do stuff",
+            "work.start",
+            "go",
+        )
+        .await
+        .unwrap();
 
         assert!(wd.path().join(".boring").exists());
         assert!(wd.path().join(".boring/prompt.md").exists());
@@ -214,9 +223,17 @@ mod tests {
     #[tokio::test]
     async fn test_materialize_writes_prompt() {
         let (store, _sd, wd) = setup().await;
-        materialize(&store, "run-1", "planner", wd.path(), "build the thing", "work.start", "go")
-            .await
-            .unwrap();
+        materialize(
+            &store,
+            "run-1",
+            "planner",
+            wd.path(),
+            "build the thing",
+            "work.start",
+            "go",
+        )
+        .await
+        .unwrap();
 
         let content = std::fs::read_to_string(wd.path().join(".boring/prompt.md")).unwrap();
         assert!(content.contains("build the thing"));
@@ -226,7 +243,10 @@ mod tests {
     async fn test_materialize_downloads_scratchpad() {
         let (store, _sd, wd) = setup().await;
         store
-            .put("run-1/scratchpad/planner.md", b"## Progress\n- step 1".to_vec())
+            .put(
+                "run-1/scratchpad/planner.md",
+                b"## Progress\n- step 1".to_vec(),
+            )
             .await
             .unwrap();
 
@@ -247,7 +267,10 @@ mod tests {
             {"memory_type": "decision", "content": "Chose NATS", "source": "planner", "timestamp": "2026-01-01"},
         ]);
         store
-            .put("run-1/memories.json", serde_json::to_vec(&memories).unwrap())
+            .put(
+                "run-1/memories.json",
+                serde_json::to_vec(&memories).unwrap(),
+            )
             .await
             .unwrap();
 
@@ -305,7 +328,8 @@ mod tests {
         assert!(wd.path().join(".boring/scratchpad/planner.md").exists());
         // Other hat's scratchpad (cross-hat visibility)
         assert!(wd.path().join(".boring/scratchpad/builder.md").exists());
-        let builder = std::fs::read_to_string(wd.path().join(".boring/scratchpad/builder.md")).unwrap();
+        let builder =
+            std::fs::read_to_string(wd.path().join(".boring/scratchpad/builder.md")).unwrap();
         assert!(builder.contains("builder notes"));
     }
 
@@ -326,10 +350,16 @@ mod tests {
         .unwrap();
 
         // Sync back
-        sync_back(&store, "run-1", "planner", wd.path()).await.unwrap();
+        sync_back(&store, "run-1", "planner", wd.path())
+            .await
+            .unwrap();
 
         // Verify S3 has the update
-        let content = store.get("run-1/scratchpad/planner.md").await.unwrap().unwrap();
+        let content = store
+            .get("run-1/scratchpad/planner.md")
+            .await
+            .unwrap()
+            .unwrap();
         assert!(String::from_utf8_lossy(&content).contains("step 2 done"));
     }
 
@@ -351,7 +381,9 @@ mod tests {
         )
         .unwrap();
 
-        sync_back(&store, "run-1", "planner", wd.path()).await.unwrap();
+        sync_back(&store, "run-1", "planner", wd.path())
+            .await
+            .unwrap();
 
         let content = store.get("run-1/memories.json").await.unwrap().unwrap();
         assert!(String::from_utf8_lossy(&content).contains("null check"));

@@ -38,11 +38,7 @@ impl MemoryStore {
     }
 
     /// Append a new memory and save.
-    pub async fn append(
-        &self,
-        store: &dyn Store,
-        memory: Memory,
-    ) -> anyhow::Result<()> {
+    pub async fn append(&self, store: &dyn Store, memory: Memory) -> anyhow::Result<()> {
         let mut memories = self.load(store).await?;
         memories.push(memory);
         let bytes = serde_json::to_vec_pretty(&memories)?;
@@ -108,7 +104,11 @@ mod tests {
 
     #[test]
     fn test_parse_memory_line_pattern() {
-        let mem = parse_memory_line("BORING_MEMORY pattern Always use snake_case for function names", "builder").unwrap();
+        let mem = parse_memory_line(
+            "BORING_MEMORY pattern Always use snake_case for function names",
+            "builder",
+        )
+        .unwrap();
         assert_eq!(mem.memory_type, "pattern");
         assert_eq!(mem.content, "Always use snake_case for function names");
         assert_eq!(mem.source, "builder");
@@ -116,7 +116,11 @@ mod tests {
 
     #[test]
     fn test_parse_memory_line_decision() {
-        let mem = parse_memory_line("BORING_MEMORY decision Chose async-nats over lapin for NATS client", "planner").unwrap();
+        let mem = parse_memory_line(
+            "BORING_MEMORY decision Chose async-nats over lapin for NATS client",
+            "planner",
+        )
+        .unwrap();
         assert_eq!(mem.memory_type, "decision");
         assert!(mem.content.contains("async-nats"));
     }

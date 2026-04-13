@@ -1,6 +1,6 @@
 use async_trait::async_trait;
-use aws_sdk_s3::Client;
 use aws_sdk_s3::primitives::ByteStream;
+use aws_sdk_s3::Client;
 
 use crate::traits::Store;
 
@@ -56,8 +56,7 @@ impl S3Store {
             Err(e) => {
                 let msg = format!("{}", e);
                 // Ignore "bucket already exists" errors
-                if !msg.contains("BucketAlreadyOwnedByYou")
-                    && !msg.contains("BucketAlreadyExists")
+                if !msg.contains("BucketAlreadyOwnedByYou") && !msg.contains("BucketAlreadyExists")
                 {
                     // Some S3-compatible stores return different errors, just log and continue
                     tracing::debug!("create_bucket returned: {}", msg);
@@ -178,10 +177,14 @@ mod tests {
     use super::*;
 
     async fn setup_store() -> S3Store {
-        let bucket = format!("boring-test-{}", std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_millis() % 1_000_000);
+        let bucket = format!(
+            "boring-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_millis()
+                % 1_000_000
+        );
 
         S3Store::local(
             "http://localhost:9000",
@@ -198,7 +201,10 @@ mod tests {
     #[ignore] // requires RustFS/MinIO on localhost:9000
     async fn test_s3_put_and_get() {
         let store = setup_store().await;
-        store.put("hello.txt", b"hello world".to_vec()).await.unwrap();
+        store
+            .put("hello.txt", b"hello world".to_vec())
+            .await
+            .unwrap();
 
         let result = store.get("hello.txt").await.unwrap();
         assert_eq!(result, Some(b"hello world".to_vec()));
@@ -227,9 +233,18 @@ mod tests {
     #[ignore]
     async fn test_s3_list_by_prefix() {
         let store = setup_store().await;
-        store.put("run-abc/scratchpad/planner.md", b"a".to_vec()).await.unwrap();
-        store.put("run-abc/scratchpad/builder.md", b"b".to_vec()).await.unwrap();
-        store.put("run-abc/events/001.json", b"c".to_vec()).await.unwrap();
+        store
+            .put("run-abc/scratchpad/planner.md", b"a".to_vec())
+            .await
+            .unwrap();
+        store
+            .put("run-abc/scratchpad/builder.md", b"b".to_vec())
+            .await
+            .unwrap();
+        store
+            .put("run-abc/events/001.json", b"c".to_vec())
+            .await
+            .unwrap();
 
         let keys = store.list("run-abc/scratchpad/").await.unwrap();
         assert_eq!(keys.len(), 2);

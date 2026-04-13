@@ -121,7 +121,10 @@ mod tests {
 
     #[test]
     fn test_nats_subject_from_topic() {
-        assert_eq!(nats_subject("run-abc", "work.start"), "boring.run-abc.work.start");
+        assert_eq!(
+            nats_subject("run-abc", "work.start"),
+            "boring.run-abc.work.start"
+        );
     }
 
     #[test]

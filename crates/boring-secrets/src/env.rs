@@ -1,5 +1,5 @@
-use async_trait::async_trait;
 use crate::traits::SecretProvider;
+use async_trait::async_trait;
 
 /// Resolves secrets from environment variables.
 ///
@@ -57,8 +57,14 @@ mod tests {
     fn test_env_var_name_mapping() {
         let provider = EnvSecretProvider::new();
         assert_eq!(provider.env_var_name("api-key"), "BORING_SECRET_API_KEY");
-        assert_eq!(provider.env_var_name("my-secret"), "BORING_SECRET_MY_SECRET");
-        assert_eq!(provider.env_var_name("ALREADY_UPPER"), "BORING_SECRET_ALREADY_UPPER");
+        assert_eq!(
+            provider.env_var_name("my-secret"),
+            "BORING_SECRET_MY_SECRET"
+        );
+        assert_eq!(
+            provider.env_var_name("ALREADY_UPPER"),
+            "BORING_SECRET_ALREADY_UPPER"
+        );
     }
 
     #[test]

@@ -1,5 +1,5 @@
-use std::path::{Path, PathBuf};
 use async_trait::async_trait;
+use std::path::{Path, PathBuf};
 
 use crate::traits::Store;
 
@@ -89,7 +89,10 @@ mod tests {
     #[tokio::test]
     async fn test_put_and_get() {
         let (store, _dir) = setup();
-        store.put("run-abc/scratchpad/planner.md", b"hello world".to_vec()).await.unwrap();
+        store
+            .put("run-abc/scratchpad/planner.md", b"hello world".to_vec())
+            .await
+            .unwrap();
 
         let result = store.get("run-abc/scratchpad/planner.md").await.unwrap();
         assert_eq!(result, Some(b"hello world".to_vec()));
@@ -124,17 +127,32 @@ mod tests {
     #[tokio::test]
     async fn test_list_by_prefix() {
         let (store, _dir) = setup();
-        store.put("run-abc/scratchpad/planner.md", b"a".to_vec()).await.unwrap();
-        store.put("run-abc/scratchpad/builder.md", b"b".to_vec()).await.unwrap();
-        store.put("run-abc/events/001.json", b"c".to_vec()).await.unwrap();
-        store.put("run-other/scratchpad/x.md", b"d".to_vec()).await.unwrap();
+        store
+            .put("run-abc/scratchpad/planner.md", b"a".to_vec())
+            .await
+            .unwrap();
+        store
+            .put("run-abc/scratchpad/builder.md", b"b".to_vec())
+            .await
+            .unwrap();
+        store
+            .put("run-abc/events/001.json", b"c".to_vec())
+            .await
+            .unwrap();
+        store
+            .put("run-other/scratchpad/x.md", b"d".to_vec())
+            .await
+            .unwrap();
 
         let mut keys = store.list("run-abc/scratchpad/").await.unwrap();
         keys.sort();
-        assert_eq!(keys, vec![
-            "run-abc/scratchpad/builder.md",
-            "run-abc/scratchpad/planner.md",
-        ]);
+        assert_eq!(
+            keys,
+            vec![
+                "run-abc/scratchpad/builder.md",
+                "run-abc/scratchpad/planner.md",
+            ]
+        );
     }
 
     #[tokio::test]

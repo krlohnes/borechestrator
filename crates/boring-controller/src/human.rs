@@ -24,23 +24,25 @@ pub struct CliHumanInteraction;
 #[async_trait]
 impl HumanInteraction for CliHumanInteraction {
     async fn ask(&self, question: &str, context: &HumanContext) -> anyhow::Result<String> {
-        println!("\n[HUMAN INPUT REQUIRED] (run: {}, hat: {}, iteration: {})",
-            context.run_id, context.hat_id, context.iteration);
+        println!(
+            "\n[HUMAN INPUT REQUIRED] (run: {}, hat: {}, iteration: {})",
+            context.run_id, context.hat_id, context.iteration
+        );
         println!("{}", question);
         print!("> ");
 
         let mut input = String::new();
-        tokio::task::spawn_blocking(move || {
-            std::io::stdin().read_line(&mut input).map(|_| input)
-        })
-        .await?
-        .map_err(|e| anyhow::anyhow!("stdin read failed: {}", e))
-        .map(|s| s.trim().to_string())
+        tokio::task::spawn_blocking(move || std::io::stdin().read_line(&mut input).map(|_| input))
+            .await?
+            .map_err(|e| anyhow::anyhow!("stdin read failed: {}", e))
+            .map(|s| s.trim().to_string())
     }
 
     async fn notify(&self, message: &str, context: &HumanContext) -> anyhow::Result<()> {
-        println!("\n[NOTIFICATION] (run: {}, hat: {}): {}",
-            context.run_id, context.hat_id, message);
+        println!(
+            "\n[NOTIFICATION] (run: {}, hat: {}): {}",
+            context.run_id, context.hat_id, message
+        );
         Ok(())
     }
 }
@@ -71,7 +73,9 @@ pub fn parse_human_line(line: &str) -> Option<String> {
 /// Format: BORING_NOTIFY <message>
 pub fn parse_notify_line(line: &str) -> Option<String> {
     let trimmed = line.trim();
-    trimmed.strip_prefix("BORING_NOTIFY ").map(|s| s.to_string())
+    trimmed
+        .strip_prefix("BORING_NOTIFY ")
+        .map(|s| s.to_string())
 }
 
 /// Represents a parsed human interaction event from stdout.

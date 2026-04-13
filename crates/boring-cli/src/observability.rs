@@ -1,13 +1,12 @@
-use tracing_subscriber::EnvFilter;
 use tracing_subscriber::prelude::*;
+use tracing_subscriber::EnvFilter;
 
 /// Initialize observability: structured JSON logging + optional OTel tracing.
 ///
 /// OTel is enabled when the `otel` feature is active AND the `OTEL_EXPORTER_OTLP_ENDPOINT`
 /// env var is set. Otherwise, just structured logging.
 pub fn init() {
-    let env_filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("info"));
+    let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
 
     let fmt_layer = tracing_subscriber::fmt::layer()
         .json()
@@ -42,9 +41,7 @@ fn init_otel_tracer() -> Result<opentelemetry_sdk::trace::Tracer, Box<dyn std::e
     use opentelemetry::trace::TracerProvider;
     use opentelemetry_otlp::SpanExporter;
 
-    let exporter = SpanExporter::builder()
-        .with_tonic()
-        .build()?;
+    let exporter = SpanExporter::builder().with_tonic().build()?;
 
     let provider = opentelemetry_sdk::trace::TracerProvider::builder()
         .with_batch_exporter(exporter, opentelemetry_sdk::runtime::Tokio)

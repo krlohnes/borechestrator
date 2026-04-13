@@ -1,16 +1,52 @@
 use std::process::ExitCode;
 
 const PRESETS: &[(&str, &str, &str)] = &[
-    ("feature", "Feature development with planner, builder, and reviewer", FEATURE_PRESET),
-    ("tdd", "Test-driven development with red-green-refactor cycle", TDD_PRESET),
-    ("research", "Research and analysis (no code changes)", RESEARCH_PRESET),
+    (
+        "feature",
+        "Feature development with planner, builder, and reviewer",
+        FEATURE_PRESET,
+    ),
+    (
+        "tdd",
+        "Test-driven development with red-green-refactor cycle",
+        TDD_PRESET,
+    ),
+    (
+        "research",
+        "Research and analysis (no code changes)",
+        RESEARCH_PRESET,
+    ),
     ("debug", "Hypothesis-driven debugging", DEBUG_PRESET),
-    ("review", "Adversarial code review (red team / blue team)", REVIEW_PRESET),
-    ("minimal", "Single agent that completes a task", MINIMAL_PRESET),
-    ("spec-driven", "Specification-driven development with contract-first approach", SPEC_DRIVEN_PRESET),
-    ("mob", "Mob programming with navigator, driver, and observer", MOB_PRESET),
-    ("refactor", "Code refactoring with safety checks", REFACTOR_PRESET),
-    ("pr-review", "Multi-perspective pull request review", PR_REVIEW_PRESET),
+    (
+        "review",
+        "Adversarial code review (red team / blue team)",
+        REVIEW_PRESET,
+    ),
+    (
+        "minimal",
+        "Single agent that completes a task",
+        MINIMAL_PRESET,
+    ),
+    (
+        "spec-driven",
+        "Specification-driven development with contract-first approach",
+        SPEC_DRIVEN_PRESET,
+    ),
+    (
+        "mob",
+        "Mob programming with navigator, driver, and observer",
+        MOB_PRESET,
+    ),
+    (
+        "refactor",
+        "Code refactoring with safety checks",
+        REFACTOR_PRESET,
+    ),
+    (
+        "pr-review",
+        "Multi-perspective pull request review",
+        PR_REVIEW_PRESET,
+    ),
     ("docs", "Documentation generation", DOCS_PRESET),
     ("deploy", "Deployment and release workflow", DEPLOY_PRESET),
 ];
@@ -38,7 +74,10 @@ pub fn run(preset: Option<&str>, list: bool) -> ExitCode {
 
     let output_path = "borechestrator.yml";
     if std::path::Path::new(output_path).exists() {
-        eprintln!("{} already exists. Remove it first or use a different name.", output_path);
+        eprintln!(
+            "{} already exists. Remove it first or use a different name.",
+            output_path
+        );
         return ExitCode::from(1);
     }
 

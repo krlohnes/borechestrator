@@ -1,3 +1,3 @@
-pub mod topic;
-pub mod event;
 pub mod config;
+pub mod event;
+pub mod topic;

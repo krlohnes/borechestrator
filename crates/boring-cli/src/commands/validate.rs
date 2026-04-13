@@ -1,6 +1,6 @@
+use boring_proto::config::BoringConfig;
 use std::path::Path;
 use std::process::ExitCode;
-use boring_proto::config::BoringConfig;
 
 pub fn run(config_path: &Path) -> ExitCode {
     let config = match BoringConfig::from_file(config_path) {

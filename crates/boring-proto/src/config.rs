@@ -37,7 +37,9 @@ impl BoringConfig {
     pub fn from_yaml(yaml: &str) -> Result<Self, ConfigError> {
         let config: BoringConfig = serde_yaml::from_str(yaml)?;
         if config.hats.is_empty() {
-            return Err(ConfigError::Validation("hats map must not be empty".to_string()));
+            return Err(ConfigError::Validation(
+                "hats map must not be empty".to_string(),
+            ));
         }
         Ok(config)
     }
@@ -122,10 +124,15 @@ impl CliConfig {
 
         let cli_cmd = match self.backend.as_str() {
             "claude" => {
-                let model_flag = self.model.as_ref()
+                let model_flag = self
+                    .model
+                    .as_ref()
                     .map(|m| format!(" --model {}", m))
                     .unwrap_or_default();
-                format!("({}) | claude --dangerously-skip-permissions{}", prompt_arg, model_flag)
+                format!(
+                    "({}) | claude --dangerously-skip-permissions{}",
+                    prompt_arg, model_flag
+                )
             }
             "kiro" => format!("kiro --print -p \"$({})\"", prompt_arg),
             "gemini" => format!("({}) | gemini", prompt_arg),
@@ -231,9 +238,15 @@ pub struct MemoriesConfig {
     pub budget: usize,
 }
 
-fn default_true() -> bool { true }
-fn default_inject() -> String { "auto".to_string() }
-fn default_budget() -> usize { 2000 }
+fn default_true() -> bool {
+    true
+}
+fn default_inject() -> String {
+    "auto".to_string()
+}
+fn default_budget() -> usize {
+    2000
+}
 
 /// Tasks config for work item tracking.
 #[derive(Debug, Deserialize)]
@@ -407,7 +420,10 @@ hats:
         assert_eq!(planner.max_activations, Some(10));
 
         let builder = &config.hats["builder"];
-        assert_eq!(builder.image, Some("ghcr.io/org/builder:latest".to_string()));
+        assert_eq!(
+            builder.image,
+            Some("ghcr.io/org/builder:latest".to_string())
+        );
     }
 
     #[test]
@@ -416,7 +432,10 @@ hats:
         let runtime = config.runtime.unwrap();
         assert_eq!(runtime.mode, RuntimeMode::Local);
         assert_eq!(runtime.namespace, Some("default".to_string()));
-        assert_eq!(runtime.default_image, Some("ghcr.io/org/agent:latest".to_string()));
+        assert_eq!(
+            runtime.default_image,
+            Some("ghcr.io/org/agent:latest".to_string())
+        );
         assert_eq!(runtime.job_timeout_seconds, Some(300));
     }
 
@@ -518,7 +537,9 @@ hats:
 "#;
         let config = BoringConfig::from_yaml(yaml).unwrap();
         let errors = config.validate().unwrap_err();
-        assert!(errors.iter().any(|e| format!("{}", e).contains("starting_event")));
+        assert!(errors
+            .iter()
+            .any(|e| format!("{}", e).contains("starting_event")));
     }
 
     #[test]

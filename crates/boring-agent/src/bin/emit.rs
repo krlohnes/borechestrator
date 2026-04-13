@@ -25,8 +25,8 @@ fn main() -> ExitCode {
     }
 
     // All emits go to a file that boring-agent reads
-    let emit_file = env::var("BORING_EMIT_FILE")
-        .unwrap_or_else(|_| "/tmp/boring-emits.jsonl".to_string());
+    let emit_file =
+        env::var("BORING_EMIT_FILE").unwrap_or_else(|_| "/tmp/boring-emits.jsonl".to_string());
 
     let line = match args[0].as_str() {
         "--complete" => {
@@ -41,7 +41,11 @@ fn main() -> ExitCode {
             }
             let mtype = &args[1];
             let content = args[2..].join(" ");
-            format!(r#"{{"type":"memory","memory_type":"{}","content":"{}"}}"#, mtype, content.replace('"', "\\\""))
+            format!(
+                r#"{{"type":"memory","memory_type":"{}","content":"{}"}}"#,
+                mtype,
+                content.replace('"', "\\\"")
+            )
         }
         "--task" => {
             if args.len() < 3 {
@@ -50,15 +54,30 @@ fn main() -> ExitCode {
             }
             let action = &args[1];
             let arg = args[2..].join(" ");
-            format!(r#"{{"type":"task","action":"{}","arg":"{}"}}"#, action, arg.replace('"', "\\\""))
+            format!(
+                r#"{{"type":"task","action":"{}","arg":"{}"}}"#,
+                action,
+                arg.replace('"', "\\\"")
+            )
         }
         "--scratchpad" => {
             let content = args[1..].join(" ");
-            format!(r#"{{"type":"scratchpad","content":"{}"}}"#, content.replace('"', "\\\""))
+            format!(
+                r#"{{"type":"scratchpad","content":"{}"}}"#,
+                content.replace('"', "\\\"")
+            )
         }
         topic => {
-            let payload = if args.len() > 1 { args[1..].join(" ") } else { String::new() };
-            format!(r#"{{"type":"event","topic":"{}","payload":"{}"}}"#, topic, payload.replace('"', "\\\""))
+            let payload = if args.len() > 1 {
+                args[1..].join(" ")
+            } else {
+                String::new()
+            };
+            format!(
+                r#"{{"type":"event","topic":"{}","payload":"{}"}}"#,
+                topic,
+                payload.replace('"', "\\\"")
+            )
         }
     };
 

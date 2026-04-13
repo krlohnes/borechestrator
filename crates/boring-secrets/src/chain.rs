@@ -1,5 +1,5 @@
-use async_trait::async_trait;
 use crate::traits::SecretProvider;
+use async_trait::async_trait;
 
 /// Tries multiple secret providers in order, returning the first match.
 ///

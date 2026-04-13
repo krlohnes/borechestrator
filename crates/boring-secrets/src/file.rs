@@ -1,6 +1,6 @@
-use std::path::{Path, PathBuf};
-use async_trait::async_trait;
 use crate::traits::SecretProvider;
+use async_trait::async_trait;
+use std::path::{Path, PathBuf};
 
 /// Resolves secrets from files on disk.
 ///
@@ -92,10 +92,17 @@ mod tests {
     async fn test_subdirectory_secret() {
         let dir = TempDir::new().unwrap();
         std::fs::create_dir_all(dir.path().join("claude")).unwrap();
-        std::fs::write(dir.path().join("claude/credentials.json"), r#"{"key":"val"}"#).unwrap();
+        std::fs::write(
+            dir.path().join("claude/credentials.json"),
+            r#"{"key":"val"}"#,
+        )
+        .unwrap();
 
         let provider = FileSecretProvider::new(dir.path());
-        let result = provider.get_secret("claude/credentials.json").await.unwrap();
+        let result = provider
+            .get_secret("claude/credentials.json")
+            .await
+            .unwrap();
         assert_eq!(result, Some(r#"{"key":"val"}"#.to_string()));
     }
 

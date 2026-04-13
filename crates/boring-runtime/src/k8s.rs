@@ -1,14 +1,13 @@
-use std::collections::HashMap;
-use std::sync::Arc;
 use async_trait::async_trait;
 use k8s_openapi::api::batch::v1::Job;
 use k8s_openapi::api::core::v1::{
-    Container, EnvVar, PodSpec, PodTemplateSpec, Volume, VolumeMount,
-    SecretVolumeSource,
+    Container, EnvVar, PodSpec, PodTemplateSpec, SecretVolumeSource, Volume, VolumeMount,
 };
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
-use kube::api::{Api, PostParams, LogParams};
+use kube::api::{Api, LogParams, PostParams};
 use kube::{Client, ResourceExt};
+use std::collections::HashMap;
+use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use crate::traits::{JobHandle, JobSpec, JobStatus, Runtime};
@@ -83,7 +82,10 @@ impl Runtime for K8sRuntime {
                 namespace: Some(self.namespace.clone()),
                 labels: Some(
                     [
-                        ("app.kubernetes.io/managed-by".to_string(), "borechestrator".to_string()),
+                        (
+                            "app.kubernetes.io/managed-by".to_string(),
+                            "borechestrator".to_string(),
+                        ),
                         ("borechestrator/run-id".to_string(), spec.run_id.clone()),
                         ("borechestrator/hat-id".to_string(), spec.hat_id.clone()),
                     ]
@@ -98,7 +100,10 @@ impl Runtime for K8sRuntime {
                     metadata: Some(ObjectMeta {
                         labels: Some(
                             [
-                                ("app.kubernetes.io/managed-by".to_string(), "borechestrator".to_string()),
+                                (
+                                    "app.kubernetes.io/managed-by".to_string(),
+                                    "borechestrator".to_string(),
+                                ),
                                 ("borechestrator/hat-id".to_string(), spec.hat_id.clone()),
                             ]
                             .into(),
@@ -110,7 +115,8 @@ impl Runtime for K8sRuntime {
                         let mut volume_mounts = Vec::new();
                         let mut volumes = Vec::new();
 
-                        for (i, (secret_name, mount_path)) in spec.secret_mounts.iter().enumerate() {
+                        for (i, (secret_name, mount_path)) in spec.secret_mounts.iter().enumerate()
+                        {
                             let vol_name = format!("secret-{}", i);
                             let key = std::path::Path::new(mount_path)
                                 .file_name()
@@ -153,10 +159,18 @@ impl Runtime for K8sRuntime {
                                     });
                                     evs
                                 }),
-                                volume_mounts: if volume_mounts.is_empty() { None } else { Some(volume_mounts) },
+                                volume_mounts: if volume_mounts.is_empty() {
+                                    None
+                                } else {
+                                    Some(volume_mounts)
+                                },
                                 ..Default::default()
                             }],
-                            volumes: if volumes.is_empty() { None } else { Some(volumes) },
+                            volumes: if volumes.is_empty() {
+                                None
+                            } else {
+                                Some(volumes)
+                            },
                             ..Default::default()
                         }
                     }),

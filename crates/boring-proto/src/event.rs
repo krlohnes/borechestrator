@@ -133,7 +133,13 @@ mod tests {
 
     #[test]
     fn test_json_roundtrip() {
-        let event = Event::new("subtask.ready", "implement parser", Some("planner"), "run-abc", 5);
+        let event = Event::new(
+            "subtask.ready",
+            "implement parser",
+            Some("planner"),
+            "run-abc",
+            5,
+        );
         let json = serde_json::to_string(&event).unwrap();
         let deserialized: Event = serde_json::from_str(&json).unwrap();
         assert_eq!(deserialized.topic, event.topic);

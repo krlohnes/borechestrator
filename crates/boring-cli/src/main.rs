@@ -6,7 +6,10 @@ mod commands;
 mod observability;
 
 #[derive(Parser)]
-#[command(name = "boring", about = "The world's most boring AI agent orchestrator")]
+#[command(
+    name = "boring",
+    about = "The world's most boring AI agent orchestrator"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -76,13 +79,23 @@ fn main() -> ExitCode {
 
     match cli.command {
         Commands::Validate { config } => commands::validate::run(&config),
-        Commands::Run { config, mode, prompt, prompt_file, r#continue: resume } => {
+        Commands::Run {
+            config,
+            mode,
+            prompt,
+            prompt_file,
+            r#continue: resume,
+        } => {
             let rt = tokio::runtime::Runtime::new().unwrap();
-            rt.block_on(commands::run::run(&config, prompt.as_deref(), prompt_file.as_deref(), resume, mode.as_deref()))
+            rt.block_on(commands::run::run(
+                &config,
+                prompt.as_deref(),
+                prompt_file.as_deref(),
+                resume,
+                mode.as_deref(),
+            ))
         }
-        Commands::Init { preset, list } => {
-            commands::init::run(preset.as_deref(), list)
-        }
+        Commands::Init { preset, list } => commands::init::run(preset.as_deref(), list),
         Commands::Status { run_id } => {
             let rt = tokio::runtime::Runtime::new().unwrap();
             rt.block_on(commands::status::run(run_id.as_deref()))

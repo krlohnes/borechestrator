@@ -1,7 +1,7 @@
-use std::collections::HashMap;
 use boring_proto::config::HatConfig;
 use boring_proto::event::Event;
 use boring_proto::topic::Topic;
+use std::collections::HashMap;
 
 /// Routes events to hats based on their trigger patterns.
 pub struct EventRouter {
@@ -144,7 +144,10 @@ mod tests {
     #[test]
     fn test_multiple_hats_match_same_event() {
         let mut hats = HashMap::new();
-        hats.insert("planner".to_string(), hat(&["work.start"], &["subtask.ready"]));
+        hats.insert(
+            "planner".to_string(),
+            hat(&["work.start"], &["subtask.ready"]),
+        );
         hats.insert("logger".to_string(), hat(&[">"], &[]));
 
         let router = EventRouter::new(hats);
@@ -158,7 +161,10 @@ mod tests {
     #[test]
     fn test_targeted_event_only_routes_to_target() {
         let mut hats = HashMap::new();
-        hats.insert("planner".to_string(), hat(&["work.start"], &["subtask.ready"]));
+        hats.insert(
+            "planner".to_string(),
+            hat(&["work.start"], &["subtask.ready"]),
+        );
         hats.insert("builder".to_string(), hat(&["work.start"], &["work.done"]));
 
         let router = EventRouter::new(hats);
@@ -171,7 +177,10 @@ mod tests {
     #[test]
     fn test_targeted_event_target_must_also_match_trigger() {
         let mut hats = HashMap::new();
-        hats.insert("builder".to_string(), hat(&["subtask.ready"], &["work.done"]));
+        hats.insert(
+            "builder".to_string(),
+            hat(&["subtask.ready"], &["work.done"]),
+        );
 
         let router = EventRouter::new(hats);
         let mut evt = event("work.start");
@@ -213,7 +222,10 @@ mod tests {
     #[test]
     fn test_multiple_triggers_on_one_hat() {
         let mut hats = HashMap::new();
-        hats.insert("worker".to_string(), hat(&["work.start", "review.rejected"], &["work.done"]));
+        hats.insert(
+            "worker".to_string(),
+            hat(&["work.start", "review.rejected"], &["work.done"]),
+        );
 
         let router = EventRouter::new(hats);
         assert_eq!(router.route(&event("work.start")), vec!["worker"]);

@@ -1,10 +1,10 @@
-use std::collections::{HashMap, HashSet};
+use boring_broker::Broker;
 use boring_proto::config::BoringConfig;
 use boring_proto::event::Event;
-use boring_broker::Broker;
-use boring_store::Store;
-use boring_runtime::{Runtime, JobStatus};
+use boring_runtime::{JobStatus, Runtime};
 use boring_secrets::SecretProvider;
+use boring_store::Store;
+use std::collections::{HashMap, HashSet};
 
 use crate::backpressure;
 use crate::event_router::EventRouter;
@@ -81,27 +81,39 @@ impl Reconciler {
         }
     }
 
-    async fn run_inner(&mut self, checkpoint: Option<crate::checkpoint::Checkpoint>) -> anyhow::Result<RunResult> {
-        let (run_id, mut iterations, mut activations, mut consecutive_failures, mut global_sequence, mut seen_events) =
-            if let Some(cp) = checkpoint {
-                (
-                    cp.run_id,
-                    cp.iterations,
-                    cp.activations,
-                    cp.consecutive_failures,
-                    cp.global_sequence,
-                    cp.seen_events,
-                )
-            } else {
-                (
-                    format!("run-{}", uuid::Uuid::new_v4().to_string().split('-').next().unwrap()),
-                    0u32,
-                    HashMap::new(),
-                    0u32,
-                    1u64,
-                    Vec::new(),
-                )
-            };
+    async fn run_inner(
+        &mut self,
+        checkpoint: Option<crate::checkpoint::Checkpoint>,
+    ) -> anyhow::Result<RunResult> {
+        let (
+            run_id,
+            mut iterations,
+            mut activations,
+            mut consecutive_failures,
+            mut global_sequence,
+            mut seen_events,
+        ) = if let Some(cp) = checkpoint {
+            (
+                cp.run_id,
+                cp.iterations,
+                cp.activations,
+                cp.consecutive_failures,
+                cp.global_sequence,
+                cp.seen_events,
+            )
+        } else {
+            (
+                format!(
+                    "run-{}",
+                    uuid::Uuid::new_v4().to_string().split('-').next().unwrap()
+                ),
+                0u32,
+                HashMap::new(),
+                0u32,
+                1u64,
+                Vec::new(),
+            )
+        };
 
         let router = EventRouter::new(self.config.hats.clone());
         let builder = JobBuilder::new(&self.config);
@@ -116,13 +128,8 @@ impl Reconciler {
 
         // Only publish starting event for fresh runs (not resumes)
         if seen_events.is_empty() {
-            let starting_event = Event::new(
-                &self.config.event_loop.starting_event,
-                "",
-                None,
-                &run_id,
-                0,
-            );
+            let starting_event =
+                Event::new(&self.config.event_loop.starting_event, "", None, &run_id, 0);
             self.broker.publish(&run_id, &starting_event).await?;
         }
 
@@ -204,7 +211,9 @@ impl Reconciler {
                     .flatten()
                     .map(|bytes| String::from_utf8_lossy(&bytes).to_string());
 
-                let spec = builder.build(&hat_id, hat, &event, scratchpad.as_deref(), &*self.secrets).await?;
+                let spec = builder
+                    .build(&hat_id, hat, &event, scratchpad.as_deref(), &*self.secrets)
+                    .await?;
 
                 let handle = self.runtime.create_job(spec).await?;
                 active_jobs.insert(hat_id.clone());
@@ -246,22 +255,42 @@ impl Reconciler {
                             }
                         } else {
                             // Check if stdout contains completion promise
-                            let stripped_lines: Vec<&str> = stdout.lines()
-                                .map(|l| l.trim().trim_matches(|c: char| c == '*' || c == '`' || c == '_' || c == '#' || c.is_whitespace()))
+                            let stripped_lines: Vec<&str> = stdout
+                                .lines()
+                                .map(|l| {
+                                    l.trim().trim_matches(|c: char| {
+                                        c == '*'
+                                            || c == '`'
+                                            || c == '_'
+                                            || c == '#'
+                                            || c.is_whitespace()
+                                    })
+                                })
                                 .collect();
                             if stripped_lines.iter().any(|l| *l == completion_promise) {
                                 tracing::info!(hat = %hat_id, "completion promise found in stdout");
-                                let evt = Event::system_completion(&run_id, &completion_promise, global_sequence);
+                                let evt = Event::system_completion(
+                                    &run_id,
+                                    &completion_promise,
+                                    global_sequence,
+                                );
                                 global_sequence += 1;
                                 self.broker.publish(&run_id, &evt).await?;
                             } else {
                                 // Auto-emit: emit the hat's default publish to keep the pipeline moving.
                                 let hat = self.config.hats.get(&hat_id);
-                                let default_topic = hat
-                                    .and_then(|h| h.default_publishes.as_ref().or(h.publishes.first()));
+                                let default_topic = hat.and_then(|h| {
+                                    h.default_publishes.as_ref().or(h.publishes.first())
+                                });
                                 if let Some(topic) = default_topic {
                                     tracing::info!(hat = %hat_id, topic = %topic, "auto-emitting default event");
-                                    let evt = Event::new(topic, "auto-emitted", Some(&hat_id), &run_id, global_sequence);
+                                    let evt = Event::new(
+                                        topic,
+                                        "auto-emitted",
+                                        Some(&hat_id),
+                                        &run_id,
+                                        global_sequence,
+                                    );
                                     global_sequence += 1;
                                     self.broker.publish(&run_id, &evt).await?;
                                 }
@@ -285,18 +314,24 @@ impl Reconciler {
                                         task_store.add(&*self.store, task).await.ok();
                                     }
                                     crate::tasks::TaskAction::Done(id) => {
-                                        task_store.update_status(
-                                            &*self.store,
-                                            &id,
-                                            crate::tasks::TaskStatus::Done,
-                                        ).await.ok();
+                                        task_store
+                                            .update_status(
+                                                &*self.store,
+                                                &id,
+                                                crate::tasks::TaskStatus::Done,
+                                            )
+                                            .await
+                                            .ok();
                                     }
                                     crate::tasks::TaskAction::InProgress(id) => {
-                                        task_store.update_status(
-                                            &*self.store,
-                                            &id,
-                                            crate::tasks::TaskStatus::InProgress,
-                                        ).await.ok();
+                                        task_store
+                                            .update_status(
+                                                &*self.store,
+                                                &id,
+                                                crate::tasks::TaskStatus::InProgress,
+                                            )
+                                            .await
+                                            .ok();
                                     }
                                 }
                             }
@@ -305,14 +340,16 @@ impl Reconciler {
                         // Persist scratchpad updates
                         if !parsed.scratchpad_lines.is_empty() {
                             let sp_key = format!("{}/scratchpad/{}.md", run_id, hat_id);
-                            let existing = self.store.get(&sp_key).await.ok().flatten()
+                            let existing = self
+                                .store
+                                .get(&sp_key)
+                                .await
+                                .ok()
+                                .flatten()
                                 .map(|b| String::from_utf8_lossy(&b).to_string())
                                 .unwrap_or_default();
-                            let new_content = format!(
-                                "{}\n{}",
-                                existing,
-                                parsed.scratchpad_lines.join("\n")
-                            );
+                            let new_content =
+                                format!("{}\n{}", existing, parsed.scratchpad_lines.join("\n"));
                             self.store.put(&sp_key, new_content.into_bytes()).await.ok();
                         }
                     }

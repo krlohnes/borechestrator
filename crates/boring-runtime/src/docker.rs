@@ -1,9 +1,9 @@
-use std::collections::HashMap;
-use std::sync::Arc;
 use async_trait::async_trait;
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 use tokio::process::Command;
 use tokio::sync::Mutex;
-use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::traits::{JobHandle, JobSpec, JobStatus, Runtime};
 
@@ -64,7 +64,8 @@ impl Runtime for DockerRuntime {
         }
 
         if let Some(ref dir) = spec.working_dir {
-            cmd.arg("-v").arg(format!("{}:/workspace", dir.to_string_lossy()));
+            cmd.arg("-v")
+                .arg(format!("{}:/workspace", dir.to_string_lossy()));
             cmd.arg("-w").arg("/workspace");
         }
 
@@ -180,7 +181,8 @@ mod tests {
     async fn test_docker_env_vars() {
         let runtime = DockerRuntime::new();
         let mut spec = simple_spec("echo $MY_VAR");
-        spec.env.insert("MY_VAR".to_string(), "hello_env".to_string());
+        spec.env
+            .insert("MY_VAR".to_string(), "hello_env".to_string());
         let handle = runtime.create_job(spec).await.unwrap();
         let status = runtime.wait_job(&handle).await.unwrap();
 

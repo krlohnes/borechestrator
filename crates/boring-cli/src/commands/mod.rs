@@ -1,6 +1,6 @@
-pub mod validate;
-pub mod run;
 pub mod emit;
 pub mod init;
-pub mod status;
 pub mod logs;
+pub mod run;
+pub mod status;
+pub mod validate;

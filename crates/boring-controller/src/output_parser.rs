@@ -1,7 +1,7 @@
-use boring_proto::event::Event;
-use crate::memories::Memory;
-use crate::tasks::{TaskAction, Task, TaskStatus};
 use crate::human::HumanAction;
+use crate::memories::Memory;
+use crate::tasks::{Task, TaskAction, TaskStatus};
+use boring_proto::event::Event;
 
 /// Everything parsed from agent stdout.
 #[derive(Debug, Default)]
@@ -42,13 +42,20 @@ pub fn parse_output(
         // the marker appears, just that it's there.
         if let Some(pos) = trimmed.find("BORING_EMIT ") {
             let rest = &trimmed[pos + "BORING_EMIT ".len()..];
-            let rest = rest.trim_end_matches(|c: char| c == '*' || c == '`' || c == '_').trim();
+            let rest = rest
+                .trim_end_matches(|c: char| c == '*' || c == '`' || c == '_')
+                .trim();
             let mut parts = rest.splitn(2, ' ');
             if let Some(topic) = parts.next() {
                 let topic = topic.trim_matches(|c: char| c == '*' || c == '`' || c == '_');
-                let payload = parts.next().unwrap_or("").trim_end_matches(|c: char| c == '*' || c == '`');
+                let payload = parts
+                    .next()
+                    .unwrap_or("")
+                    .trim_end_matches(|c: char| c == '*' || c == '`');
                 if !topic.is_empty() {
-                    result.events.push(Event::new(topic, payload, Some(hat_id), run_id, seq));
+                    result
+                        .events
+                        .push(Event::new(topic, payload, Some(hat_id), run_id, seq));
                     seq += 1;
                 }
             }
@@ -89,29 +96,42 @@ pub fn parse_output(
                         result.task_actions.push(TaskAction::Done(arg.to_string()));
                     }
                     "progress" => {
-                        result.task_actions.push(TaskAction::InProgress(arg.to_string()));
+                        result
+                            .task_actions
+                            .push(TaskAction::InProgress(arg.to_string()));
                     }
                     _ => {}
                 }
             }
         } else if let Some(pos) = trimmed.find("BORING_HUMAN ") {
             let question = &trimmed[pos + "BORING_HUMAN ".len()..];
-            result.human_actions.push(HumanAction::Ask(question.trim_end_matches(|c: char| c == '*' || c == '`').to_string()));
+            result.human_actions.push(HumanAction::Ask(
+                question
+                    .trim_end_matches(|c: char| c == '*' || c == '`')
+                    .to_string(),
+            ));
         } else if let Some(pos) = trimmed.find("BORING_NOTIFY ") {
             let message = &trimmed[pos + "BORING_NOTIFY ".len()..];
-            result.human_actions.push(HumanAction::Notify(message.trim_end_matches(|c: char| c == '*' || c == '`').to_string()));
+            result.human_actions.push(HumanAction::Notify(
+                message
+                    .trim_end_matches(|c: char| c == '*' || c == '`')
+                    .to_string(),
+            ));
         } else if let Some(pos) = trimmed.find("BORING_SCRATCHPAD ") {
             let content = &trimmed[pos + "BORING_SCRATCHPAD ".len()..];
             result.scratchpad_lines.push(content.to_string());
         } else if !completion_found && {
             // Completion promise must be the entire line (with optional markdown/whitespace).
             // This prevents false positives from lines like "When done, print LOOP_COMPLETE".
-            let stripped = trimmed
-                .trim_matches(|c: char| c == '*' || c == '`' || c == '_' || c == '#' || c == '-' || c.is_whitespace());
+            let stripped = trimmed.trim_matches(|c: char| {
+                c == '*' || c == '`' || c == '_' || c == '#' || c == '-' || c.is_whitespace()
+            });
             stripped == completion_promise
         } {
             completion_found = true;
-            result.events.push(Event::system_completion(run_id, completion_promise, seq));
+            result
+                .events
+                .push(Event::system_completion(run_id, completion_promise, seq));
             seq += 1;
         }
     }
@@ -147,7 +167,13 @@ mod tests {
 
     #[test]
     fn test_parse_emit_no_payload() {
-        let result = parse_output("BORING_EMIT work.done\n", "builder", "run-abc", "LOOP_COMPLETE", 0);
+        let result = parse_output(
+            "BORING_EMIT work.done\n",
+            "builder",
+            "run-abc",
+            "LOOP_COMPLETE",
+            0,
+        );
         assert_eq!(result.events.len(), 1);
         assert_eq!(result.events[0].topic, "work.done");
         assert_eq!(result.events[0].payload, "");
@@ -155,7 +181,13 @@ mod tests {
 
     #[test]
     fn test_parse_completion_promise() {
-        let result = parse_output("did some work\nLOOP_COMPLETE\n", "builder", "run-abc", "LOOP_COMPLETE", 0);
+        let result = parse_output(
+            "did some work\nLOOP_COMPLETE\n",
+            "builder",
+            "run-abc",
+            "LOOP_COMPLETE",
+            0,
+        );
         assert_eq!(result.events.len(), 1);
         assert!(result.events[0].is_completion("LOOP_COMPLETE"));
     }
@@ -164,13 +196,25 @@ mod tests {
     fn test_parse_completion_inline_does_not_match() {
         // Completion must be the entire line, not embedded in text.
         // Prevents false positives from LLM output like "print LOOP_COMPLETE when done".
-        let result = parse_output("all done LOOP_COMPLETE here\n", "builder", "run-abc", "LOOP_COMPLETE", 0);
+        let result = parse_output(
+            "all done LOOP_COMPLETE here\n",
+            "builder",
+            "run-abc",
+            "LOOP_COMPLETE",
+            0,
+        );
         assert_eq!(result.events.len(), 0);
     }
 
     #[test]
     fn test_parse_multiple_emits() {
-        let result = parse_output("BORING_EMIT step.one first\nBORING_EMIT step.two second\n", "worker", "run-abc", "LOOP_COMPLETE", 0);
+        let result = parse_output(
+            "BORING_EMIT step.one first\nBORING_EMIT step.two second\n",
+            "worker",
+            "run-abc",
+            "LOOP_COMPLETE",
+            0,
+        );
         assert_eq!(result.events.len(), 2);
         assert_eq!(result.events[0].topic, "step.one");
         assert_eq!(result.events[1].topic, "step.two");
@@ -180,7 +224,13 @@ mod tests {
 
     #[test]
     fn test_parse_emit_and_completion() {
-        let result = parse_output("BORING_EMIT subtask.ready go\nLOOP_COMPLETE\n", "planner", "run-abc", "LOOP_COMPLETE", 0);
+        let result = parse_output(
+            "BORING_EMIT subtask.ready go\nLOOP_COMPLETE\n",
+            "planner",
+            "run-abc",
+            "LOOP_COMPLETE",
+            0,
+        );
         assert_eq!(result.events.len(), 2);
         assert_eq!(result.events[0].topic, "subtask.ready");
         assert!(result.events[1].is_completion("LOOP_COMPLETE"));
@@ -188,7 +238,13 @@ mod tests {
 
     #[test]
     fn test_parse_no_events() {
-        let result = parse_output("just regular output\n", "worker", "run-abc", "LOOP_COMPLETE", 0);
+        let result = parse_output(
+            "just regular output\n",
+            "worker",
+            "run-abc",
+            "LOOP_COMPLETE",
+            0,
+        );
         assert!(result.events.is_empty());
     }
 
@@ -200,21 +256,43 @@ mod tests {
 
     #[test]
     fn test_parse_completion_only_emitted_once() {
-        let result = parse_output("LOOP_COMPLETE\nmore\nLOOP_COMPLETE again\n", "worker", "run-abc", "LOOP_COMPLETE", 0);
-        let completions: Vec<_> = result.events.iter().filter(|e| e.is_completion("LOOP_COMPLETE")).collect();
+        let result = parse_output(
+            "LOOP_COMPLETE\nmore\nLOOP_COMPLETE again\n",
+            "worker",
+            "run-abc",
+            "LOOP_COMPLETE",
+            0,
+        );
+        let completions: Vec<_> = result
+            .events
+            .iter()
+            .filter(|e| e.is_completion("LOOP_COMPLETE"))
+            .collect();
         assert_eq!(completions.len(), 1);
     }
 
     #[test]
     fn test_parse_emit_with_leading_whitespace() {
-        let result = parse_output("  BORING_EMIT work.done all finished\n", "worker", "run-abc", "LOOP_COMPLETE", 0);
+        let result = parse_output(
+            "  BORING_EMIT work.done all finished\n",
+            "worker",
+            "run-abc",
+            "LOOP_COMPLETE",
+            0,
+        );
         assert_eq!(result.events.len(), 1);
         assert_eq!(result.events[0].payload, "all finished");
     }
 
     #[test]
     fn test_sequence_starts_at_base() {
-        let result = parse_output("BORING_EMIT a first\nBORING_EMIT b second\n", "worker", "run-abc", "LOOP_COMPLETE", 42);
+        let result = parse_output(
+            "BORING_EMIT a first\nBORING_EMIT b second\n",
+            "worker",
+            "run-abc",
+            "LOOP_COMPLETE",
+            42,
+        );
         assert_eq!(result.events[0].sequence, 42);
         assert_eq!(result.events[1].sequence, 43);
     }
@@ -223,7 +301,13 @@ mod tests {
 
     #[test]
     fn test_parse_memory() {
-        let result = parse_output("BORING_MEMORY pattern Always use snake_case\n", "builder", "run-abc", "LOOP_COMPLETE", 0);
+        let result = parse_output(
+            "BORING_MEMORY pattern Always use snake_case\n",
+            "builder",
+            "run-abc",
+            "LOOP_COMPLETE",
+            0,
+        );
         assert_eq!(result.memories.len(), 1);
         assert_eq!(result.memories[0].memory_type, "pattern");
         assert_eq!(result.memories[0].content, "Always use snake_case");
@@ -232,7 +316,13 @@ mod tests {
 
     #[test]
     fn test_parse_task_add() {
-        let result = parse_output("BORING_TASK add Implement user auth\n", "planner", "run-abc", "LOOP_COMPLETE", 0);
+        let result = parse_output(
+            "BORING_TASK add Implement user auth\n",
+            "planner",
+            "run-abc",
+            "LOOP_COMPLETE",
+            0,
+        );
         assert_eq!(result.task_actions.len(), 1);
         match &result.task_actions[0] {
             TaskAction::Add(task) => {
@@ -245,7 +335,13 @@ mod tests {
 
     #[test]
     fn test_parse_task_done() {
-        let result = parse_output("BORING_TASK done task-42\n", "builder", "run-abc", "LOOP_COMPLETE", 0);
+        let result = parse_output(
+            "BORING_TASK done task-42\n",
+            "builder",
+            "run-abc",
+            "LOOP_COMPLETE",
+            0,
+        );
         assert_eq!(result.task_actions.len(), 1);
         match &result.task_actions[0] {
             TaskAction::Done(id) => assert_eq!(id, "task-42"),
@@ -255,7 +351,13 @@ mod tests {
 
     #[test]
     fn test_parse_human_ask() {
-        let result = parse_output("BORING_HUMAN Should I proceed with the migration?\n", "builder", "run-abc", "LOOP_COMPLETE", 0);
+        let result = parse_output(
+            "BORING_HUMAN Should I proceed with the migration?\n",
+            "builder",
+            "run-abc",
+            "LOOP_COMPLETE",
+            0,
+        );
         assert_eq!(result.human_actions.len(), 1);
         match &result.human_actions[0] {
             HumanAction::Ask(q) => assert_eq!(q, "Should I proceed with the migration?"),
@@ -265,7 +367,13 @@ mod tests {
 
     #[test]
     fn test_parse_notify() {
-        let result = parse_output("BORING_NOTIFY Build completed\n", "builder", "run-abc", "LOOP_COMPLETE", 0);
+        let result = parse_output(
+            "BORING_NOTIFY Build completed\n",
+            "builder",
+            "run-abc",
+            "LOOP_COMPLETE",
+            0,
+        );
         assert_eq!(result.human_actions.len(), 1);
         match &result.human_actions[0] {
             HumanAction::Notify(m) => assert_eq!(m, "Build completed"),
@@ -275,7 +383,13 @@ mod tests {
 
     #[test]
     fn test_parse_scratchpad() {
-        let result = parse_output("BORING_SCRATCHPAD Step 3 done\nBORING_SCRATCHPAD Moving to step 4\n", "worker", "run-abc", "LOOP_COMPLETE", 0);
+        let result = parse_output(
+            "BORING_SCRATCHPAD Step 3 done\nBORING_SCRATCHPAD Moving to step 4\n",
+            "worker",
+            "run-abc",
+            "LOOP_COMPLETE",
+            0,
+        );
         assert_eq!(result.scratchpad_lines.len(), 2);
         assert_eq!(result.scratchpad_lines[0], "Step 3 done");
         assert_eq!(result.scratchpad_lines[1], "Moving to step 4");
@@ -303,7 +417,13 @@ LOOP_COMPLETE
 
     #[test]
     fn test_parse_events_compat() {
-        let events = parse_events("BORING_EMIT work.done\nLOOP_COMPLETE\n", "w", "r", "LOOP_COMPLETE", 0);
+        let events = parse_events(
+            "BORING_EMIT work.done\nLOOP_COMPLETE\n",
+            "w",
+            "r",
+            "LOOP_COMPLETE",
+            0,
+        );
         assert_eq!(events.len(), 2);
     }
 }

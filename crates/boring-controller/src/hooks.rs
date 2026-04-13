@@ -1,6 +1,6 @@
 use serde::Serialize;
-use tokio::process::Command;
 use std::process::Stdio;
+use tokio::process::Command;
 use tracing::{info, warn};
 
 /// Hook configuration from YAML.
@@ -40,10 +40,7 @@ pub struct HookContext {
 }
 
 /// Run a set of hooks, passing context as JSON on stdin.
-pub async fn run_hooks(
-    hooks: &[HookConfig],
-    context: &HookContext,
-) -> Result<(), HookError> {
+pub async fn run_hooks(hooks: &[HookConfig], context: &HookContext) -> Result<(), HookError> {
     let context_json = serde_json::to_string(context).unwrap_or_default();
 
     for hook in hooks {

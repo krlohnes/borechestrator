@@ -1,13 +1,19 @@
+use boring_broker::NatsBroker;
+use boring_controller::reconciler::{Reconciler, RunResult};
+use boring_proto::config::{BoringConfig, RuntimeMode};
+use boring_runtime::{DockerRuntime, LocalRuntime, Runtime};
+use boring_secrets::{ChainSecretProvider, EnvSecretProvider, FileSecretProvider};
+use boring_store::LocalStore;
 use std::path::Path;
 use std::process::ExitCode;
-use boring_proto::config::{BoringConfig, RuntimeMode};
-use boring_broker::NatsBroker;
-use boring_store::LocalStore;
-use boring_runtime::{LocalRuntime, DockerRuntime, Runtime};
-use boring_secrets::{EnvSecretProvider, ChainSecretProvider, FileSecretProvider};
-use boring_controller::reconciler::{Reconciler, RunResult};
 
-pub async fn run(config_path: &Path, inline_prompt: Option<&str>, prompt_file: Option<&Path>, resume: bool, mode_override: Option<&str>) -> ExitCode {
+pub async fn run(
+    config_path: &Path,
+    inline_prompt: Option<&str>,
+    prompt_file: Option<&Path>,
+    resume: bool,
+    mode_override: Option<&str>,
+) -> ExitCode {
     let mut config = match BoringConfig::from_file(config_path) {
         Ok(c) => c,
         Err(e) => {
@@ -86,10 +92,14 @@ pub async fn run(config_path: &Path, inline_prompt: Option<&str>, prompt_file: O
         }
         RuntimeMode::K8s => {
             println!("Runtime: k8s");
-            let namespace = config.runtime.as_ref()
+            let namespace = config
+                .runtime
+                .as_ref()
                 .and_then(|r| r.namespace.as_deref())
                 .unwrap_or("default");
-            let default_image = config.runtime.as_ref()
+            let default_image = config
+                .runtime
+                .as_ref()
                 .and_then(|r| r.default_image.as_deref())
                 .unwrap_or("alpine:latest");
             match boring_runtime::k8s::K8sRuntime::new(namespace, default_image).await {
@@ -115,7 +125,9 @@ pub async fn run(config_path: &Path, inline_prompt: Option<&str>, prompt_file: O
 
     // Add K8s secrets when running in K8s mode
     if mode == boring_proto::config::RuntimeMode::K8s {
-        let namespace = config.runtime.as_ref()
+        let namespace = config
+            .runtime
+            .as_ref()
             .and_then(|r| r.namespace.as_deref())
             .unwrap_or("default");
         if let Ok(k8s) = boring_secrets::k8s::K8sSecretProvider::new(namespace).await {
