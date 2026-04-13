@@ -161,10 +161,11 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_completion_inline() {
+    fn test_parse_completion_inline_does_not_match() {
+        // Completion must be the entire line, not embedded in text.
+        // Prevents false positives from LLM output like "print LOOP_COMPLETE when done".
         let result = parse_output("all done LOOP_COMPLETE here\n", "builder", "run-abc", "LOOP_COMPLETE", 0);
-        assert_eq!(result.events.len(), 1);
-        assert!(result.events[0].is_completion("LOOP_COMPLETE"));
+        assert_eq!(result.events.len(), 0);
     }
 
     #[test]
