@@ -109,17 +109,21 @@ Topic wildcards are NATS-compatible. `work.*` matches `work.start`. `work.>` mat
 
 ## Running it
 
+Locally, if you must:
+
 ```bash
-# Local dev
 ./scripts/dev-up.sh
 boring run -c borechestrator.yml
+```
 
-# Kubernetes
+On Kubernetes, where this thing actually belongs:
+
+```bash
 ./scripts/k8s-up.sh
 boring run -c borechestrator.yml --mode k8s
 ```
 
-There are 12 presets if you don't want to write YAML from scratch.
+There are 12 presets if writing YAML from scratch sounds like too much excitement.
 
 ```bash
 boring init --list
@@ -128,7 +132,9 @@ boring init feature
 
 ## Secrets
 
-Env vars, files, K8s Secrets. In that order. Checked automatically.
+You already have a way to manage secrets. Use that.
+
+Env vars, files, K8s Secrets — checked in that order, automatically.
 
 ```bash
 # Option 1: env var
@@ -156,7 +162,7 @@ secret_mounts:
     mount_path: /home/agent/.claude/.credentials.json
 ```
 
-AWS Secrets Manager and Azure Key Vault are behind feature flags.
+AWS Secrets Manager and Azure Key Vault are there too, behind feature flags, if your org is into that sort of thing.
 
 ## Agent images
 
@@ -173,7 +179,7 @@ Each hat can use a different image, model, or tool. Put Claude on the builder. P
 
 ## The `.boring/` directory
 
-Every agent gets one. Materialized from S3 before the command runs.
+Every agent gets a `.boring/` directory materialized from S3. It's how hats share state without anyone building a plugin or SDK.
 
 ```
 .boring/
@@ -184,7 +190,7 @@ Every agent gets one. Materialized from S3 before the command runs.
   tasks.md          # work items
 ```
 
-It's just files. `grep` works. `cat` works. Your AI tool reads them like any other file. No SDK. No API. No plugin.
+`grep` works. `cat` works. Your AI tool reads them like any other file on disk, because that's what they are.
 
 ## Monitoring
 
@@ -198,6 +204,8 @@ There's also `boring status` and `boring logs` if you want. OTel tracing behind 
 There is no TUI. There is no web UI. There is no dashboard. You have `kubectl`. It's fine. If you want a TUI, there's [k9s](https://k9scli.io/).
 
 ## Architecture
+
+If you care:
 
 ```mermaid
 graph TB
