@@ -105,8 +105,6 @@ emit --memory pattern "use snake_case"
 emit --task add "implement auth"
 ```
 
-If the agent forgets to call `emit`, the reconciler auto-emits the hat's default topic. The pipeline keeps moving.
-
 Topic wildcards are NATS-compatible. `work.*` matches `work.start`. `work.>` matches `work.sub.deep`. `>` matches everything. I didn't invent a pattern syntax. NATS already had one.
 
 ## Running it
@@ -219,7 +217,7 @@ graph TB
     K8s --> Agent
 ```
 
-Eight crates. Most of them are trait + implementation pairs. The interesting one is `boring-controller` which has the reconciler loop — the actual orchestrator. It's about 300 lines.
+Eight crates. Most of them are trait + implementation pairs.
 
 ## What this is not
 
